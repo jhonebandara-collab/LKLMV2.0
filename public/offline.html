@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Internet නෑ — LK Lottery Master</title>
+<meta name="theme-color" content="#0f1420">
+<style>
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+       background:linear-gradient(180deg,#0f1420,#121a27 40%,#0d131d);color:#e8eef7;
+       font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans Sinhala","Noto Sans Tamil",sans-serif;
+       padding:24px;text-align:center}
+  .box{max-width:420px}
+  .ico{font-size:56px;line-height:1}
+  h1{font-size:20px;margin:14px 0 6px}
+  p{color:#9fb0c5;font-size:14px;line-height:1.6;margin:6px 0}
+  ul{text-align:left;color:#9fb0c5;font-size:13.5px;line-height:1.8;margin:14px auto;max-width:320px;padding-left:20px}
+  button{margin-top:16px;width:100%;padding:14px;border:0;border-radius:12px;font:inherit;font-weight:800;
+         background:linear-gradient(135deg,#f1c40f,#ffd75e);color:#10161f;cursor:pointer}
+  .small{font-size:12px;color:#6f8098;margin-top:14px}
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="ico">📴</div>
+    <h1>Internet සම්බන්ධතාවයක් නෑ</h1>
+    <p>මේ පිටුව offline එකේ පළවෙනි වතාවට load කරන්න බෑ — app එක එක් වරක්
+       අන්තර්ජාලය සමඟ open කරලා තිබ්බොත් ඊට පස්සේ offline එකේත් වැඩ කරනවා.</p>
+    <ul>
+      <li>✅ පසුගිය ප්‍රතිඵල (cache කරපු) බලන්න පුළුවන්</li>
+      <li>✅ ටිකට් QR එක scan කරලා දිනුම check කරන්න පුළුවන්</li>
+      <li>⚠️ AI Scan (Gemini) සහ ගිණුම් වැඩ offline එකේ වැඩ කරන්නේ නෑ</li>
+    </ul>
+    <button onclick="location.reload()">🔄 නැවත උත්සාහ කරන්න</button>
+    <div class="small">No internet connection · LK Lottery Master</div>
+  </div>
+  <script>
+    // Internet ආවාම තනියම reload වෙන්න
+    window.addEventListener('online', () => location.replace('/'));
+  </script>
+</body>
+</html>

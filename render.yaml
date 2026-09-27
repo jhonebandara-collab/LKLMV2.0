@@ -1,0 +1,102 @@
+# ============================================================================
+# render.yaml — Render Blueprint (LK Lottery Master)
+# ============================================================================
+# මේ file එක තිබ්බොත් Render එකේ service එක **එක click එකකින්** හදාගන්න පුළුවන්:
+#
+#   Render Dashboard → New → Blueprint → ඔබේ GitHub repo එක තෝරන්න → Apply
+#
+# Render එකෙන් `sync: false` කියලා තියෙන හැම variable එකක්ම අහනවා
+# (ඒවා secret නිසා repo එකේ ලියන්නේ නෑ).
+#
+# ⚠️ Free plan එකේ **persistent disk එකක් දාන්න බෑ** — ඒ නිසා free එකේදී
+#    users/ගිණුම්/history (SQLite) server එක restart වුනාම මැකෙනවා.
+#    Test කරන්න ඒක අවුලක් නෑ. ඇත්තටම පාවිච්චි කරන්න නම්:
+#      ① plan එක Starter (paid) කරන්න  ② පහළ `disk:` කොටස uncomment කරන්න
+#      ③ `DB_PATH` env var එක `/var/data/app.db` කරන්න
+# ============================================================================
+
+services:
+  - type: web
+    name: lk-lottery-master
+    runtime: node
+    plan: free                      # test කරන්න. production එකට → starter
+    region: singapore               # ශ්‍රී ලංකාවට ලඟම (oregon / frankfurt / ohio වෙනත් ඒවා)
+    branch: main
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit       # git push කරද්දී තනියම deploy වෙනවා
+    envVars:
+      # ---- Server ----
+      - key: NODE_ENV
+        value: production
+      # Render එකේ default PORT=10000 — app එක තනියම ඒක අල්ලගන්නවා (වෙනස් කරන්න ඕන නෑ)
+      - key: TRUST_PROXY
+        value: "true"               # Render එකේ load balancer එක පිටුපස run වෙන නිසා
+      - key: APP_TIMEZONE
+        value: Asia/Colombo
+      # ⚠️ deploy වුනාට පස්සේ මේක ඔබේ ඇත්ත URL එකට වෙනස් කරන්න:
+      #    https://lk-lottery-master.onrender.com   (නැත්නම් sitemap/canonical වැරදි)
+      - key: APP_BASE_URL
+        sync: false
+
+      # ---- Security ----
+      - key: JWT_SECRET
+        generateValue: true         # Render එකෙන් strong random එකක් හදනවා ✅
+
+      # ---- Admin (අනිවාර්යයි — නැත්නම් admin panel එක වැඩ කරන්නේ නෑ) ----
+      - key: ADMIN_EMAILS
+        sync: false                 # උදා: you@gmail.com
+
+      # ---- AI Scan (Gemini) — keys 5 ----
+      - key: GEMINI_API_KEY_1
+        sync: false
+      - key: GEMINI_API_KEY_2
+        sync: false
+      - key: GEMINI_API_KEY_3
+        sync: false
+      - key: GEMINI_API_KEY_4
+        sync: false
+      - key: GEMINI_API_KEY_5
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.6-flash
+
+      # ---- Google Sign-In (Gmail login) ----
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+
+      # ---- Scan limits (test කරන කාලෙට true, production එකට false) ----
+      - key: UNLIMITED_SCAN
+        value: "false"
+
+      # ---- Auto-scrape (දවසට දෙපාරක්) ----
+      - key: SCRAPE_CRON
+        value: "30 9,21 * * *"
+      - key: SCRAPE_MAX_AGE_HOURS
+        value: "8"
+
+      # ---- 📴 Offline bundle ----
+      - key: OFFLINE_BUNDLE_MONTHS
+        value: "6"
+      - key: DATA_STALE_HOURS
+        value: "30"
+
+      # ---- Payments (තියෙනවා නම් විතරයි — නැත්නම් හිස් තියන්න) ----
+      - key: PAYHERE_MERCHANT_ID
+        sync: false
+      - key: PAYHERE_MERCHANT_SECRET
+        sync: false
+      - key: PAYHERE_MODE
+        value: sandbox
+
+# ============================================================================
+# 💾 Persistent disk (paid plan එකකට upgrade කළාට පස්සේ විතරයි)
+#    Free plan එකේදී මේක දැම්මොත් deploy එක fail වෙනවා — ඒ නිසා comment කරලා තියෙනවා.
+#    අවශ්‍ය වුනාම පහළ පේළි 4 කලින් `-` ලකුණු ඇතුළුව uncomment කරන්න,
+#    ඊට පස්සේ envVars වලට `- key: DB_PATH` / `value: /var/data/app.db` එකතු කරන්න.
+# ============================================================================
+#    disk:
+#      name: lk-data
+#      mountPath: /var/data
+#      sizeGB: 1
