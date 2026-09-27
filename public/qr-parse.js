@@ -306,12 +306,25 @@
       return best;
     }
 
+    /** එක ඉලක්කම් token ටික යාබදව එකතු කරලා 2-ඉලක්කම් අංක හදනවා ("1 2 4 5 6 7 8 9" → "12 45 67 89") */
+    function pairSingletons(list) {
+      const out = [];
+      for (let i = 0; i + 1 < list.length; i += 2) out.push(list[i].v + list[i + 1].v);
+      return out;
+    }
+
     // --- ලොතරැයිය දන්නවා නම් ---
     if (wantW === 2 && wantC) {
       if (two.length >= wantC) return { pairs: two.slice(-wantC).map(t => t.v), width: 2, order: 'two' };
       const sp = bestSplit(tokens, 2, wantC);
       if (sp && sp.parts.length >= Math.min(wantC, 1)) {
         return { pairs: sp.parts.slice(-wantC), width: 2, order: 'split2', exact: !!sp.exact };
+      }
+      /* 🔁 QR එකේ ඉලක්කම් **1 බැගින්** තිබ්බත්, 2 බැගින් ඕන ලොතරැයියකට
+         හරියටම ගානට හදන්න පුළුවන් නම් හදනවා (උදා: "1 2 4 5 6 7 8 9" → "12 45 67 89") */
+      if (one.length >= wantC * 2) {
+        const pr = pairSingletons(one.slice(-wantC * 2));
+        if (pr.length === wantC) return { pairs: pr, width: 2, order: 'pair-auto', exact: true };
       }
       if (two.length) return { pairs: two.map(t => t.v), width: 2, order: 'two-partial' };
       return { pairs: [], width: 2, order: 'none' };
@@ -322,6 +335,14 @@
       const sp = bestSplit(tokens, 1, wantC);
       if (sp && sp.parts.length >= Math.min(wantC, 1)) {
         return { pairs: sp.parts.slice(-wantC), width: 1, order: 'split1', exact: !!sp.exact };
+      }
+      /* 🔁 අනිත් පැත්ත: QR එකේ **2 බැගින්** තිබ්බත් 1 බැගින් ඕන ලොතරැයියකට
+         (උදා: "12 45 67" → 1,2,4,5,6,7) — ගාන හරියටම ගැලපෙනවා නම් විතරයි */
+      const twoForOne = tokens.filter(t => t.len === 2);
+      if (twoForOne.length * 2 >= wantC) {
+        const flat = twoForOne.slice(-Math.ceil(wantC / 2))
+          .map(t => t.v.split('')).reduce((a, b) => a.concat(b), []);
+        if (flat.length >= wantC) return { pairs: flat.slice(-wantC), width: 1, order: 'unpair-auto', exact: true };
       }
       if (one.length) return { pairs: one.map(t => t.v), width: 1, order: 'one-partial' };
       return { pairs: [], width: 1, order: 'none' };
@@ -381,19 +402,29 @@
    * අකුර තෝරනවා — **තනි අකුරක් විදිහට** තියෙන එකක් විතරයි (වචනයක කොටසක් නොවේ).
    * උදා: "… DRAW 3121 I 12 45 67 89" → I ✓ · "MAHAJANA" → ✗
    */
-  function guessLetter(s, lot) {
+  /** ටිකට් එකේ තියෙන හැම "තනි අකුරක්ම" — [{ch, idx}] (ලොතරැයියේ නමේ අකුරු අයින් කරලා) */
+  function allLetterCands(s, lot) {
     const noise = noiseWords(lot && lot.slug);
     const t = String(s || '');
-    // \b එකෙන් තනි අකුරක් (අග/මුල/හිස්තැන/විරාම ලකුණක් වටේ)
     const re = /(^|[^A-Za-z0-9])([A-Za-z])(?![A-Za-z0-9])/g;
     const found = [];
     let m;
-    while ((m = re.exec(t)) !== null) found.push({ ch: m[2].toUpperCase(), idx: m.index + m[1].length });
+    while ((m = re.exec(t)) !== null) {
+      const ch = m[2].toUpperCase();
+      if (noise.has(ch)) continue;                 // LOTTERY/DRAW/S/N වගේ label අකුරු අයින්
+      found.push({ ch: ch, idx: m.index + m[1].length });
+    }
+    return found;
+  }
+
+  function guessLetter(s, lot) {
+    const t = String(s || '');
+    const found = allLetterCands(s, lot);
 
     // labels (L / Z / N / D) — අපැහැදිලි නිසා පළමු වටයේදී අයින් කරනවා
     const labels = new Set(['L', 'Z', 'N', 'D']);
-    let cand = found.filter(f => !noise.has(f.ch) && !labels.has(f.ch));
-    if (!cand.length) cand = found.filter(f => !noise.has(f.ch));
+    let cand = found.filter(f => !labels.has(f.ch));
+    if (!cand.length) cand = found.slice();
     if (!cand.length) return null;
     if (cand.length === 1) return cand[0].ch;
 
@@ -447,6 +478,8 @@
     const out = {
       raw: s, format: 'unknown', slug: null,
       drawNo: null, date: null, letter: null, zodiac: null, superNumber: null, serial: null,
+      // 🅰️ ටිකට් එකේ තියෙන **හැම තනි අකුරක්ම** + special letter එකක් තියෙනවා නම් ඒකත්
+      letters: [], specialLetter: null,
       pairs: [], digitWidth: null, confidence: 'low', missing: [], notes: [],
       dateSpan: null,
     };
@@ -597,10 +630,21 @@
     // (6c) අංක නැති නමුත් payload එකේ 6+ ඉලක්කම් token එකක් නම් ඒක ටිකට් කේතයක් වෙන්න පුළුවන්
     //      (⚠️ ලොතරැයි සන්දර්භයක් තියෙනවා නම් විතරයි — WiFi QR එකේ "12345678" එක ටිකට් එකක් නෙවෙයි)
     if (!out.pairs.length && !out.serial && hasLotteryCtx) {
-      const long = numTokens(s).find(t =>
-        t.len >= 6 && !insideSpan(t, out.dateSpan) && t.v !== String(out.drawNo));
+      const wC = lotCtx && lotCtx.digitWidth, cC = lotCtx && lotCtx.numberCount;
+      const long = numTokens(s).find(t => {
+        if (t.len < 6) return false;
+        if (insideSpan(t, out.dateSpan)) return false;
+        if (out.drawNo && t.v === String(out.drawNo)) return false;
+        // ⚠️ මේ token එක **ටිකට් අංක කාණ්ඩය** වෙන්නත් පුළුවන් නම් (උදා: "12456789" = 4×2)
+        //    ඒක serial එකක් විදිහට ගන්නේ නෑ.
+        if (wC && cC && t.len === wC * cC) return false;
+        return true;
+      });
       if (long) out.serial = long.v;
     }
+    // ⚠️ serial එකක් දැන් හම්බුනා නම් ඒක ටිකට් අංක ලැයිස්තුවෙන් අයින් කරන්න ඕන
+    // (නැත්නම් "7712345" වගේ serial එකෙන් ඉලක්කම් අංක විදිහට ගන්නවා)
+    if (out.serial) toks = toks.filter(t => t.v !== String(out.serial));
 
     // (6d) Super number: keyword එකක් නැත්නම්, අංක කාණ්ඩයට කලින් තියෙන 1-2 ඉලක්කම් එක
     if (!out.superNumber && lot && lot.hasSuperNumber && toks.length) {
@@ -625,11 +669,23 @@
     /* ---------- (7) අකුර (letter) + confidence ---------- */
     if (!out.slug && lot) out.slug = lot.slug;
 
+    // (7a) ටිකට් එකේ තියෙන හැම තනි අකුරක්ම (order එකට) — user ට පෙන්නන්න
+    out.letters = allLetterCands(s, lot).map(c => c.ch);
+
     if (!out.letter && lot && lot.hasLetter) {
       const L = guessLetter(s, lot);
       if (L) out.letter = L;
     }
     if (out.letter) out.letter = String(out.letter).toUpperCase();
+
+    /* (7b) 🅰️ Special letter — ලොතරැයියේ අකුර එකක් තියෙනවා නම්, තව අකුරක් තිබ්බොත්
+       ඒක special letter එක විදිහට ගන්නවා. (උදා: "LETTER K SPECIAL LETTER X …"
+       හෝ අකුරු 2ක් තියෙන ටිකට් වල.) — ලොතරැයියේ ඒ field එක නැත්නම් මේක
+       පෙන්නන්නේ නෑ, ඒත් QR එකේ තියෙනවා නම් කියවලා තියාගන්නවා. */
+    if (out.letter) {
+      const others = allLetterCands(s, lot).filter(c => c.ch !== out.letter);
+      if (others.length) out.specialLetter = others[others.length - 1].ch;
+    }
 
     // --- confidence + missing ---
     if (out.zodiac) out.zodiac = zodiacNormalize(out.zodiac) || String(out.zodiac).toUpperCase();

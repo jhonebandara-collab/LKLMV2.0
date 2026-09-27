@@ -1,6 +1,6 @@
 {
   "name": "lk-lottery-master",
-  "version": "1.3.0",
+  "version": "1.5.0",
   "private": true,
   "description": "Sri Lanka NLB + DLB lottery result checker with real prize tables, AI ticket scanning and subscriptions",
   "main": "server.js",
@@ -13,12 +13,14 @@
     "scrape": "node scraper.js",
     "sync-draws": "node -e \"console.log(require('./draws-store').syncDraws())\"",
     "test": "node test.js",
-    "test:gemini": "node test-gemini.js",
-    "test:offline": "node scripts/smoke-offline.js",
+    "test:prize": "node scripts/test-prize-structures.js",
     "test:qr": "node scripts/test-qr-parse.js",
-    "health": "node -e \"fetch('http://localhost:'+(process.env.PORT||3000)+'/api/health').then(r=>r.json()).then(j=>console.log(JSON.stringify(j,null,2))).catch(e=>console.error('Server එක run වෙන්නේ නෑ:',e.message))\"",
+    "test:verify": "node scripts/test-verify-announce.js",
+    "test:offline": "node scripts/smoke-offline.js",
     "test:e2e": "node scripts/e2e-browser.js",
-    "shots": "node scripts/screenshot.js open"
+    "test:gemini": "node test-gemini.js",
+    "shots": "node scripts/screenshot.js open",
+    "health": "node -e \"fetch('http://localhost:'+(process.env.PORT||3000)+'/api/health').then(r=>r.json()).then(j=>console.log(JSON.stringify(j,null,2))).catch(e=>console.error('Server එක run වෙන්නේ නෑ:',e.message))\""
   },
   "keywords": [
     "lottery",

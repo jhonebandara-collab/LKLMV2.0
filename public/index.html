@@ -540,6 +540,37 @@ button:disabled,.iconbtn:disabled{opacity:.45;cursor:not-allowed}
 .diagline{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;
   color:var(--muted);line-height:1.7;word-break:break-word}
 
+/* ── 🎟️ ටිකට් ↔ දිනුම් ප්‍රතිඵලය සැසඳීමේ ටේබලය ── */
+.cmp-wrap{margin-top:12px}
+.cmp{border:1px solid var(--line);border-radius:14px;padding:11px 12px;
+  background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.01))}
+.cmp.ok{border-color:rgba(74,222,128,.45)}
+.cmp.bad{border-color:rgba(248,113,113,.5)}
+.cmp.partial{border-color:rgba(250,204,21,.45)}
+.cmp-hd{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline;
+  justify-content:space-between;margin-bottom:8px}
+.cmp-verdict{font-size:12px;color:var(--muted);flex:1 1 100%}
+.cmp-head-row,.cmp-row{display:grid;grid-template-columns:1.1fr 1fr 14px 1fr 18px;
+  gap:6px;align-items:center;font-size:13px;padding:5px 0;border-top:1px dashed rgba(255,255,255,.06)}
+.cmp-head-row{border-top:0;font-size:11px;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.4px}
+.cmp-row .cmp-k{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis}
+.cmp-row .cmp-t,.cmp-row .cmp-d{font-weight:700;word-break:break-word}
+.cmp-row .cmp-arrow{text-align:center;color:var(--muted)}
+.cmp-row .cmp-s{text-align:right}
+.cmp-row.ok .cmp-t{color:#8ef0b0}
+.cmp-row.bad .cmp-t{color:#ff9d9d}
+.cmp-row.bad{background:rgba(248,113,113,.07);border-radius:8px}
+.cmp-row.unknown .cmp-t{color:#ffd479}
+.cmp-none{color:var(--muted);font-weight:400;font-size:11.5px}
+.cmp-nums{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.cmp-chip{display:inline-block;min-width:34px;text-align:center;padding:5px 9px;border-radius:9px;
+  font-weight:800;font-size:15px;letter-spacing:.5px;border:1px solid transparent}
+.cmp-chip.ok{background:rgba(74,222,128,.16);border-color:rgba(74,222,128,.45);color:#b7f7cd}
+.cmp-chip.bad{background:rgba(248,113,113,.13);border-color:rgba(248,113,113,.35);color:#ffbdbd;
+  text-decoration:line-through;opacity:.85}
+.cmp-note{margin-top:7px;font-size:12px;color:var(--muted)}
+
 /* සාමාන්‍ය polish */
 .card{border:1px solid var(--line);box-shadow:0 6px 20px rgba(0,0,0,.22);
   border-radius:var(--radius);background:linear-gradient(180deg,rgba(255,255,255,.018),transparent)}
@@ -796,13 +827,23 @@ footer strong{color:#a9b8c9}
             <input type="range" id="zoomSlider" min="1" max="1" step="0.1" value="1">
             <span class="zlbl" id="zoomVal">1.0x</span>
           </div>
-          <button class="iconbtn" id="refocusBtn" type="button" style="display:none">
+          <!-- 🎯 අතින් focus distance — auto-focus එක නොවුනොත් (0.8cm QR එකට වැදගත්) -->
+          <div class="zoomwrap" id="focusWrap" style="display:none">
+            <span class="zlbl">🎯</span>
+            <input type="range" id="focusSlider" min="0" max="1000" step="10" value="1000">
+            <span class="zlbl" id="focusVal">—</span>
+          </div>
+          <button class="iconbtn" id="refocusBtn" type="button" style="display:none"
+                  title="Focus එක අලුතින් අල්ලන්න">
             <span class="gl">🎯</span>Focus
           </button>
           <button class="iconbtn" id="scanNowBtn" type="button" title="දැන්ම පරීක්ෂා කරන්න">
             <span class="gl">🔍</span>දැන්ම
           </button>
-          <button class="iconbtn" id="shotBtn" type="button" style="display:none">
+          <!-- 📷 Photo එකක් ගන්න — QR mode එකේදී QR එක කියවනවා, AI mode එකේදී AI එකට යවනවා
+               (කලින් මේ වැඩේට buttons 2ක් තිබ්බා — දැන් එකක් විතරයි) -->
+          <button class="iconbtn" id="captureBtn" type="button" style="display:none"
+                  title="Photo එකක් අරන් scan කරන්න">
             <span class="gl">📷</span>Photo
           </button>
         </div>
@@ -811,13 +852,11 @@ footer strong{color:#a9b8c9}
         <details class="adv" id="otherMethods" style="margin-top:9px">
           <summary>📱 වෙනත් ක්රම (phone camera · gallery · photo)</summary>
           <div class="advbody">
-            <input type="file" id="nativeCamInput" accept="image/*" capture="environment" style="display:none">
-            <button class="btn" id="nativeCamBtn" type="button" data-i18n="scan.btnPhone" style="margin-bottom:8px">
-              <span class="ico">📱</span>Phone එකේ camera app එකෙන්
-            </button>
-            <input type="file" id="galleryInput" accept="image/*" style="display:none">
-            <button class="btn" id="galleryBtn" type="button" data-i18n="scan.btnGallery">
-              <span class="ico">🖼️</span>Gallery එකෙන් photo එකක්
+            <!-- 🖼️ එකම file input එකෙන් camera එකයි gallery එකයි දෙකම (phone එකේ
+                 "Take Photo / Photo Library" දෙකම පෙන්නනවා) — කලින් buttons 2ක් තිබ්බා. -->
+            <input type="file" id="photoInput" accept="image/*" style="display:none">
+            <button class="btn" id="uploadBtn" type="button" data-i18n="scan.btnUpload" style="margin-bottom:8px">
+              <span class="ico">🖼️</span>Photo එකක් එවන්න (camera හෝ gallery)
             </button>
             <div class="warn-mini" style="margin-top:8px">
               💡 QR එක ලොකු කරන්න බැරි නම් phone එකේ camera app එකෙන් <strong>QR එකට
@@ -835,15 +874,8 @@ footer strong{color:#a9b8c9}
 
       <!-- ── උසස් සැකසුම් (default වලින් වැහිලා) ── -->
       <details class="adv" id="advBox" style="margin-top:12px">
-        <summary>⚙️ උසස් සැකසුම් (hi-res · photo upload · ශබ්දය)</summary>
+        <summary>⚙️ උසස් සැකසුම් (ශබ්දය · crop · diagnostics)</summary>
         <div class="advbody">
-          <button class="btn" id="qrHiResBtn" style="display:none;margin-bottom:10px">
-            📸 උසස් ගුණත්ව Scan (full-resolution photo එකක්)
-          </button>
-          <label class="btn sec" id="qrPhotoLbl" for="qrPhotoInput" style="display:none;margin-bottom:10px;text-align:center">
-            🖼️ QR photo එකක් Upload කරන්න (හොඳම ක්‍රමය)
-            <input type="file" id="qrPhotoInput" accept="image/*" style="display:none">
-          </label>
           <div class="warn-mini" id="qrMacroTip" style="display:none;margin-bottom:10px">
             💡 ටිකට් QR එක <strong>8mm × 8mm</strong>. <strong>8-15cm</strong> දුරින්, කහ රාමුව
             ඇතුළේ තියලා scan කරන්න. තවම නොවුනොත් phone එකේ camera app එකෙන් කිට්ටුවෙන්
@@ -852,6 +884,10 @@ footer strong{color:#a9b8c9}
 
           <button class="btn sec" id="soundBtn" style="margin-bottom:10px">
             🔊 දිනුම් ශබ්දය: ක්‍රියාත්මකයි
+          </button>
+          <!-- 🔊 හඬ ඇත්තටම වැඩ කරනවද කියලා phone එකේදීම බලන්න -->
+          <button class="btn sec" id="soundTestBtn" style="margin-bottom:10px">
+            🎧 හඬ පරීක්ෂා කරන්න (දිනුම + පරාද දෙකම)
           </button>
 
           <label class="fld" style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
@@ -1061,6 +1097,9 @@ footer strong{color:#a9b8c9}
 <!-- 🔳 QR payload parser — ලොතරැයි format එකට අනුව (දිනය/ලග්නය/special/අකුරු)
      ⚠️ මේක decode කරන කොටසට **කලින්** load වෙන්න ඕන. Test: `npm run test:qr` -->
 <script src="/qr-parse.js"></script>
+<!-- 🎟️ ටිකට් ↔ ප්රතිඵලය සැසඳීම + 🔊 ශබ්ද වාක්‍ය (Test: npm run test:verify) -->
+<script src="/ticket-verify.js"></script>
+<script src="/announce.js"></script>
 <!-- 🎯 QR decode pipeline (finder locator + binarization lattice + frame stacking) -->
 <script src="/qr-decode.js"></script>
 <!-- 🎙️ දිනුම්/නොදිනුම් හඬ නිවේදනය (young female voice) -->
@@ -1664,10 +1703,9 @@ async function doCheck(ticket) {
     };
     if (SUBGAME != null) body.subGameIndex = SUBGAME;
     const data = await api('/api/check', { method: 'POST', body: JSON.stringify(body) });
+    LAST_TICKET_CTX = { slug: CURRENT.slug, ticket: ticket, parsed: null, at: Date.now() };
     renderResult(host, data, { subGameIndex: SUBGAME });
     pushHistory(data, ticket);
-    // 🔊 දිනුමක් නම් ඇහෙන විදිහටත් කියනවා
-    if (data.won) announceWin(data);
   } catch (e) {
     msg(host, 'err', '❌ ' + esc(e.message));
   } finally {
@@ -1747,7 +1785,31 @@ function renderResult(host, d, opts) {
   host.appendChild(box);
   box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-  /* 🔌 offline.js — scan එකකින් ආ ප්‍රතිඵලයක් නම් 5-තත්පර overlay එක පෙන්නනවා
+  /* 🔊 ප්‍රතිඵලය ඇහෙන විදිහට කියනවා — දිනුම නම් මුදල වචන වලින්, පරාද නම්
+     "Sorry, you have lost this time. Try again." (එකම තැනකින් විතරයි → 3 පාරක් නෑ) */
+  try { announceResult(d); } catch (e) { /* ignore */ }
+
+  /* 🎟️ ටිකට් එකේ දත්ත ↔ දිනුම් ප්රතිඵලය — **හරියටම ගැලපෙනවද** කියලා පෙන්නනවා.
+     QR/අතින්/AI — ඕනෑම ක්රමයකින් ආවත් මේක පෙන්නනවා (මොනවද ගැලපුනේ කියලා
+     පැහැදිලිව පේන නිසා "ප්රතිඵලය වැරදුනොත්" කියන ප්රශ්නය අඩු වෙනවා). */
+  try {
+    if (window.LKMTicketVerify && d && d.lottery) {
+      const lotX = LOTTERIES.find(l => l.slug === d.lottery.slug);
+      let ctx = LAST_TICKET_CTX;
+      if (!ctx || (Date.now() - ctx.at > 10 * 60 * 1000) ||
+          (ctx.slug && ctx.slug !== d.lottery.slug)) {
+        ctx = { slug: d.lottery.slug, ticket: d.ticket || {}, parsed: null, at: Date.now() };
+      }
+      if (lotX) {
+        const v = window.LKMTicketVerify.verify(lotX, d.draw || {}, ctx.ticket || {}, ctx.parsed || null, LANG);
+        const wrap = el('div', 'cmp-wrap');
+        wrap.innerHTML = window.LKMTicketVerify.html(v);
+        box.appendChild(wrap);
+      }
+    }
+  } catch (e) { /* ignore */ }
+
+  /* 🔌 offline.js — scan එකකින් ආ ප්රතිඵලයක් නම් 5-තත්පර overlay එක පෙන්නනවා
      (කැමරාව නොනවත්තා ඊළඟ ටිකට් එකට මාරු වෙන්න පුළුවන් විදිහට). */
   if (window.LKMExtras && typeof window.LKMExtras.onResult === 'function') {
     try { window.LKMExtras.onResult(d, opts); } catch (e) { /* ignore */ }
@@ -1864,9 +1926,14 @@ async function matchNumbersAgainstResults(slug, numbers, subGameIndex, source, e
       body.appendChild(el('div', 'note', 'ℹ️ Game එක අනුමාන කරන්න බැරි උනා — ' +
         '🎟️ අතින් පරීක්ෂාවෙන් game එක තෝරලා බලන්න.'));
     }
+    LAST_TICKET_CTX = {
+      slug: lot.slug,
+      ticket: { letter: rb.letter, zodiac: rb.zodiac, superNumber: rb.superNumber, numbers: rb.numbers },
+      parsed: (extra && extra.parsed) || (LAST_TICKET_CTX && LAST_TICKET_CTX.parsed) || null,
+      at: Date.now(),
+    };
     renderResult(body, data, { subGameIndex: sg });
     pushHistory(data, { letter: rb.letter, numbers: rb.numbers });
-    if (data.won) announceWin(data);
   } catch (e) {
     body.innerHTML = '';
     msg(body, 'err', '❌ Match කරන්න බැරි උනා: ' + esc(e.message));
@@ -1940,6 +2007,70 @@ async function loadResultsByDate(date) {
  *      ඒවා විතරක් applyConstraints() එකෙන් දානවා.
  *   3. Support නැත්නම් "නැවත Focus" button එකෙන් focus එක restart කරනවා.
  */
+/**
+ * 🎯 Focus — Chrome (Android) වල auto-focus එක පොඩි QR එකට lock වෙන්නේ නෑ.
+ * ඒ නිසා තුනක් කරනවා:
+ *   ① scanning වෙද්දී හැම 2.5s කට වතාවක් continuous focus එක **අලුතින්** apply කරනවා
+ *   ② Focus බොත්තම → single-shot (අලුත් AF sweep එකක්) → ආයෙ continuous
+ *   ③ **අතින් focus distance** slider එකක් (getCapabilities().focusDistance තියෙනවා නම්)
+ *      — auto-focus එක නොවුනොත් user ට තමන්ම හරි තැනට දාගන්න පුළුවන්
+ */
+let qrFocusTimer = null, qrFocusRange = null, qrFocusManual = null;
+
+async function refocusTrack(mode) {
+  const track = camStream && camStream.getVideoTracks ? camStream.getVideoTracks()[0] : null;
+  if (!track) return;
+  try {
+    const caps = track.getCapabilities ? (track.getCapabilities() || {}) : {};
+    const m = mode || 'continuous';
+    if (Array.isArray(caps.focusMode) && caps.focusMode.includes(m)) {
+      await track.applyConstraints({ advanced: [{ focusMode: m }] });
+    }
+  } catch (e) { /* ignore */ }
+}
+
+function startFocusKeepAlive() {
+  if (qrFocusTimer) clearInterval(qrFocusTimer);
+  qrFocusTimer = setInterval(() => {
+    if (!camStream) return;
+    if (SCAN_MODE !== 'qr') return;
+    // 🔒 user අතින් focus distance එකක් දාලා නම් ඒකට අත ගහන්නේ නෑ
+    if (qrFocusManual != null) return;
+    refocusTrack('continuous');
+  }, 2500);
+}
+
+/** අතින් focus distance slider එක (හැකියාව තියෙනවා නම් විතරයි) */
+async function setupManualFocus(track) {
+  const wrap = $('#focusWrap');
+  if (!wrap) return;
+  let caps = {};
+  try { caps = track && track.getCapabilities ? (track.getCapabilities() || {}) : {}; } catch (e) { caps = {}; }
+  const fd = caps.focusDistance;
+  if (!fd || typeof fd.max !== 'number' || fd.max <= fd.min) {
+    wrap.style.display = 'none';
+    qrFocusRange = null;
+    return;
+  }
+  qrFocusRange = fd;
+  const sl = $('#focusSlider');
+  if (!sl) return;
+  sl.min = String(fd.min); sl.max = String(fd.max); sl.step = String(fd.step || 1);
+  sl.value = String(fd.max);                       // default: දුරට (∞) — සාමාන්‍ය පරාසය
+  $('#focusVal').textContent = (Number(fd.max) / 1000).toFixed(2) + 'm';
+  sl.oninput = async () => {
+    qrFocusManual = parseFloat(sl.value);
+    const m = qrFocusManual;
+    $('#focusVal').textContent = (m / 1000).toFixed(2) + 'm';
+    try {
+      await track.applyConstraints({ advanced: [{ focusMode: 'manual', focusDistance: m }] });
+    } catch (e) {
+      try { await track.applyConstraints({ advanced: [{ focusDistance: m }] }); } catch (e2) { /* ignore */ }
+    }
+  };
+  wrap.style.display = 'flex';
+}
+
 async function applyBestFocus(track) {
   if (!track || typeof track.getCapabilities !== 'function') return null;
   let caps = {};
@@ -2061,12 +2192,12 @@ async function startCamera() {
 function setCameraUI(open) {
   $('#camWrap').style.display = open ? 'block' : 'none';
   // 🔳 QR mode එකේදී photo එකක් ගන්න ඕන නෑ — තනියම කියවනවා
-  $('#shotBtn').style.display = (open && SCAN_MODE !== 'qr') ? 'block' : 'none';
+  $('#captureBtn').style.display = open ? 'flex' : 'none';
   $('#refocusBtn').style.display = open ? 'block' : 'none';
   // 📌 camera එක open වෙලා ඉද්දී පාලන පේළිය (torch · zoom · focus · දැන්ම) පෙන්නනවා
   const ctl = $('#scanCamCtl');
   if (ctl) ctl.style.display = open ? 'flex' : 'none';
-  // camera එක open වෙලා ඉද්දී වෙන entry points අයින් කරනවා
+  // camera එක open වෙලා ඉද්දී "වෙනත් ක්රම" කොටස අයින් කරනවා (එකම වැඩේ 2 පාරක් නෑ)
   const other = $('#otherMethods');
   if (other) other.style.display = open ? 'none' : 'block';
   const hint = $('#camHint');
@@ -2182,7 +2313,7 @@ if (camStartBtnEl) {
 let SCAN_BUSY = false;
 let LUCKY_BUSY = false;
 
-const SCAN_BTNS = ['#camStartBtn', '#nativeCamBtn', '#galleryBtn', '#shotBtn', '#refocusBtn'];
+const SCAN_BTNS = ['#camStartBtn', '#uploadBtn', '#captureBtn', '#refocusBtn'];
 const LUCKY_BTNS = ['#luckyPatBtn', '#luckyGuessBtn', '#luckyScanBtn', '#luckyOvBtn'];
 
 function setBusy(selectors, busy, labels) {
@@ -2202,7 +2333,7 @@ function setBusy(selectors, busy, labels) {
 
 function setScanBusy(busy) {
   SCAN_BUSY = !!busy;
-  setBusy(SCAN_BTNS, busy, busy ? { '#shotBtn': '⏳ Scan කරමින්...' } : null);
+  setBusy(SCAN_BTNS, busy, busy ? { '#captureBtn': '⏳ Scan කරමින්...' } : null);
   // scan එකක් යන අතරතුර hero mode buttons දෙකත් disable කරනවා
   ['#heroQr', '#heroTotal'].forEach(sel => { const b = $(sel); if (b) b.disabled = !!busy; });
   // camera එකේ තත්ත්වය අනුව labels නැවත හරි කරන්න (start/stop)
@@ -2221,6 +2352,8 @@ function setLuckyBusy(busy) {
 let ZOOM_RANGE = null;
 
 async function setupZoom(track) {
+  try { await setupManualFocus(track); } catch (e) { /* ignore */ }
+  try { startFocusKeepAlive(); } catch (e) { /* ignore */ }
   const wrap = $('#zoomWrap');
   let caps = {};
   try { caps = (track.getCapabilities ? track.getCapabilities() : {}) || {}; } catch (e) { caps = {}; }
@@ -2635,10 +2768,14 @@ async function matchScanAgainstResults(s) {
       : '⚠️ මේ ලොතරැයියේ Game කිහිපයක් තියෙනවා — AI එක කියෙව්ව අංක ගණනට කිසිම game එකක් ගැලපුනේ නෑ. "අතින් Check" එකෙන් game එක තෝරලා check කරන්න.'));
   }
 
+  LAST_TICKET_CTX = {
+    slug: lot.slug,
+    ticket: { letter: rb.letter, zodiac: rb.zodiac, superNumber: rb.superNumber, numbers: rb.numbers },
+    parsed: null,
+    at: Date.now(),
+  };
   renderResult(body, data, { subGameIndex });
   pushHistory(data, { letter: rb.letter, numbers: rb.numbers });
-  // 🔊 දිනුමක් නම් ඇහෙන විදිහටත් කියනවා
-  if (data.won) announceWin(data);
 
   setStageBadge(!!data.won ? '🎉 දිනුමක් තියෙනවා! පහළින් බලන්න'
     : data.unavailable ? '❓ Check කරන්න බෑ' : '✓ Scan ඉවරයි — දිනුමක් නෑ', true);
@@ -2707,7 +2844,11 @@ function renderScanResult(s, quota, unlimited, secs) {
 // එකක් දැම්මොත් click එකකින් start + stop දෙකම run වෙලා button එක කැඩෙනවා.
 $('#refocusBtn').addEventListener('click', refocus);
 
-$('#shotBtn').addEventListener('click', () => {
+/* 📷 Photo එකක් ගන්න — **mode එකට අනුව හරි වැඩේ** (කලින් buttons 2ක් තිබ්බා)
+     · 🔳 QR mode  → full-resolution photo එකකින් QR එක කියවනවා (qrStillScan)
+     · 🤖 AI mode  → රාමුවේ කොටස AI එකට යවනවා (runScan)                          */
+$('#captureBtn').addEventListener('click', () => {
+  if (SCAN_MODE === 'qr') return qrStillScan();
   const cap = captureCropped();
   if (!cap) {
     return msg($('#scanStatus'), 'err', '❌ Camera එක තවම ready නෑ — පොඩ්ඩක් ඉඳලා try කරන්න.');
@@ -2728,14 +2869,23 @@ $('#shotBtn').addEventListener('click', () => {
   runScan(cap.dataUrl);
 });
 
-$('#galleryBtn').addEventListener('click', () => $('#galleryInput').click());
-$('#nativeCamBtn').addEventListener('click', () => $('#nativeCamInput').click());
+// 🖼️ එකම file input එක — phone එකේදී camera/gallery දෙකම තෝරන්න පුළුවන්
+$('#uploadBtn').addEventListener('click', () => $('#photoInput').click());
 
-// Gallery + phone-camera app දෙකටම එකම handler එක
-function wireFileInput(input) {
+/* 🖼️ Photo එකක් එවන්න — mode එකට අනුව:
+     · 🔳 QR mode  → file එකේ QR එක කියවනවා (qrPhotoScan)
+     · 🤖 AI mode  → file එකේ ටිකට් එක AI එකට යවනවා (runScan)                  */
+function wirePhotoInput(input) {
+  if (!input || input.dataset.lkmWired) return;
+  input.dataset.lkmWired = '1';
   input.addEventListener('change', ev => {
     const f = ev.target.files && ev.target.files[0];
     if (!f) return;
+    if (SCAN_MODE === 'qr') {
+      qrPhotoScan(f);
+      input.value = '';
+      return;
+    }
     const img = new Image();
     img.onload = () => {
       const b64 = base64FromImage(img);
@@ -2747,8 +2897,7 @@ function wireFileInput(input) {
     input.value = ''; // එකම file එක ආයෙත් තෝරන්න පුළුවන් වෙන්න
   });
 }
-wireFileInput($('#galleryInput'));
-wireFileInput($('#nativeCamInput'));
+wirePhotoInput($('#photoInput'));
 
 /* ================= 5. history ================= */
 function readHistory() {
@@ -4595,6 +4744,10 @@ async function loadLuckyHistory() {
 /* ================= 9. 🔳 Scan modes · 🔊 දිනුම් ශබ්දය · 📅 දිනය · ℹ️ උදව් ================= */
 let SCAN_MODE = 'total';                    // 'qr' | 'total'
 let WIN_SOUND = localStorage.getItem('lkm_sound') !== 'off';
+
+/* 🎟️ අන්තිමට පරීක්ෂා කරපු ටිකට් එකේ දත්ත (QR parse එකේ date/drawNo/specialLetter
+   වගේ දේවල් ඇතුළුව) — ප්රතිඵලය පෙන්නද්දී සැසඳීමේ ටේබලය හදන්න මේක පාවිච්චි වෙනවා. */
+let LAST_TICKET_CTX = null;
 let qrLoopTimer = null;
 let qrDetector = null;
 /**
@@ -4604,6 +4757,33 @@ let qrDetector = null;
  */
 let qrDetectorNeedsVideo = false;
 let audioCtx = null;
+let audioUnlocked = false;
+
+/**
+ * 🔊 **Audio unlock** — Chrome/Safari වල හඬක් play වෙන්න පළවෙනි user gesture
+ * එකේදීම AudioContext එක resume කරලා TTS engine එක warm කරන්න ඕන.
+ * මේක නොකළොත් scan ප්‍රතිඵලය වෙද්දී හඬ play වෙන්නේම නෑ.
+ */
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) {
+      audioCtx = audioCtx || new AC();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const g = audioCtx.createGain();
+      g.gain.value = 0.0001;
+      const o = audioCtx.createOscillator();
+      o.frequency.value = 440;
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(); o.stop(audioCtx.currentTime + 0.02);
+    }
+  } catch (e) { /* ignore */ }
+  try { prewarmSpeech(); } catch (e) { /* ignore */ }
+}
+['pointerdown', 'touchstart', 'click', 'keydown'].forEach(ev =>
+  document.addEventListener(ev, unlockAudio, { once: true, passive: true }));
 
 /* ---------- 🔊 දිනුම ඇහෙන විදිහට කියනවා ---------- */
 function chime(kind) {
@@ -4611,8 +4791,20 @@ function chime(kind) {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     audioCtx = audioCtx || new AC();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    const notes = kind === 'win' ? [660, 880, 1180] : [520, 660];
+    // ⚠️ resume() එක async — ඒ නිසා ඒක ඉවර වෙනකම් ඉඳලා වාදනය කරනවා
+    const play = () => { try { chimePlay(kind); } catch (e) { /* ignore */ } };
+    if (audioCtx.state === 'suspended') audioCtx.resume().then(play).catch(play);
+    else play();
+  } catch (e) { /* ශබ්දය අවශ්‍ය නැති environment */ }
+}
+
+/** 🎵 ඇත්ත නාදය — දිනුමකට උඩු ගමන් 3ක්, පරාදයකට පහළ ගමන් 2ක් */
+function chimePlay(kind) {
+  try {
+    if (!audioCtx) return;
+    const notes = (kind === 'win') ? [660, 880, 1180]
+      : (kind === 'lose') ? [420, 330]
+      : [520, 660];
     notes.forEach((f, i) => {
       const o = audioCtx.createOscillator();
       const g = audioCtx.createGain();
@@ -4625,7 +4817,7 @@ function chime(kind) {
       o.connect(g); g.connect(audioCtx.destination);
       o.start(t); o.stop(t + 0.55);
     });
-  } catch (e) { /* ශබ්දය අවශ්‍ය නැති environment */ }
+  } catch (e) { /* ignore */ }
 }
 
 /**
@@ -4646,34 +4838,62 @@ function prewarmSpeech() {
 function speakText(text) {
   try {
     if (!('speechSynthesis' in window)) return false;
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'en-US'; u.rate = 0.95; u.pitch = 1.02; u.volume = 1;
+    if (!text) return false;
+    const say = (retry) => {
+      try {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-US'; u.rate = 0.95; u.pitch = 1.02; u.volume = 1;
+        u.onerror = () => { if (!retry) setTimeout(() => say(true), 350); };
+        window.speechSynthesis.speak(u);
+      } catch (e) { /* ignore */ }
+    };
+    /* ⚠️ Chrome Android එකේ `cancel()` එකයි `speak()` එකයි **එකම tick එකේ**
+       දැම්මොත් utterance එක නිකම් නැති වෙනවා (හඬ එන්නේම නෑ). */
     window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
+    setTimeout(() => say(false), 130);
     return true;
   } catch (e) { return false; }
 }
 
 /**
- * දිනුමක් ඇත්නම් **ඇහෙන විදිහට** කියනවා:
- *   “You have won [මුදල] Rupees. Congratulations!”
+ * 🔊 ප්‍රතිඵලය **ඇහෙන විදිහට** කියනවා (දිනුම + පරාද + දත්ත නැති අවස්ථා):
+ *
+ *   🏆 “Congratulations! You have won forty rupees.”
+ *   🏆 “Congratulations! You have won twenty million rupees in Mahajana Sampatha.”
+ *   😔 “Sorry, you have lost this time. Try again.”
+ *   ❓ “The result for this ticket is not available yet. Please check again later.”
+ *
+ * ⚠️ වාක්‍ය ටික **`public/announce.js`** එකේ තියෙනවා — මුදල **වචන වලින්**
+ * (ඉලක්කම් නෙවෙයි), grammar හරියටම (“You have lost”, “forty rupees”,
+ * “one rupee”). ඒක වෙනම module එකක් නිසා `npm run test:verify` එකෙන් test වෙනවා.
  * (muted නම් කිසිවක් නෑ — `#soundBtn` එකෙන් ක්‍රියාත්මක/නිශ්ශබ්ද කරන්න පුළුවන්)
  */
-function announceWin(d) {
-  if (!WIN_SOUND || !d || !d.won) return;
-  const amt = d.prizeAmountRs;
-  const money = (amt != null && amt > 0)
-    ? Number(amt).toLocaleString('en-US') + ' Rupees'
-    : null;
-  const line = money
-    ? 'You have won ' + money + '! Congratulations!'
-    : 'You have won a prize! Congratulations!';
-  chime('win');
-  setTimeout(() => { if (WIN_SOUND) speakText(line); }, 420);
+let LAST_ANNOUNCE = { at: 0, key: '' };
+function announceResult(d, force) {
+  if (!WIN_SOUND || !d) return;
+  unlockAudio();                                  // 🔊 හඬ play වෙන්න ඕන නම් අනිවාර්යයි
+  // එකම ප්‍රතිඵලය එක පාරට වඩා කියන්නේ නෑ (click දෙකකින් හෝ render දෙකකින්)
+  const key = (d.lottery ? d.lottery.slug : '?') + '|' + (d.draw ? d.draw.drawNo : '?') + '|' + (d.won ? 'w' : 'l');
+  if (!force && LAST_ANNOUNCE.key === key && Date.now() - LAST_ANNOUNCE.at < 6000) return;
+  LAST_ANNOUNCE = { at: Date.now(), key: key };
+
+  const pack = (window.LKMAnnounce)
+    ? window.LKMAnnounce.forResult(d)
+    : { text: d.won ? 'Congratulations! You have won.' : 'Sorry, you have lost this time. Try again.',
+        chime: d.won ? 'win' : 'lose' };
+  chime(pack.chime === 'none' ? 'beep' : pack.chime);
+  setTimeout(() => { if (WIN_SOUND) speakText(pack.text); }, pack.chime === 'win' ? 420 : 260);
+  const st = $('#scanStatus');
+  if (st && pack.text) setDiagNote('🔊 "' + pack.text + '"');
 }
+
+/** ආපසු ගැලපීම සඳහා (පරණ නම) */
+function announceWin(d) { return announceResult(d); }
 function syncSoundBtn() {
   const b = $('#soundBtn');
-  if (b) b.textContent = WIN_SOUND ? '🔊 දිනුම් ශබ්දය: ක්‍රියාත්මකයි' : '🔇 දිනුම් ශබ්දය: නිශ්ශබ්දයි';
+  if (b) b.textContent = WIN_SOUND
+    ? '🔊 හඬ දැනුම්දීම: ක්‍රියාත්මකයි (දිනුම + පරාද දෙකම)'
+    : '🔇 හඬ දැනුම්දීම: නිශ්ශබ්දයි';
 }
 
 /* ---------- 🔳 QR code scan ---------- */
@@ -4759,6 +4979,17 @@ const QR_UPSCALE_TO = 640;       // crop එක මීට වඩා පොඩි
      ④ 🔍 "දැන්ම" button එකෙන් **එක පාරක් ගැඹුරින්ම** scan කරන්න පුළුවන්
      ⑤ 🔬 diagnostics පේළියක් (උසස් සැකසුම්) — මොන decoder එක වැඩ කරනවද කියලා
    ------------------------------------------------------------------ */
+/* 🎯 0.8cm (8mm) QR එකට විශේෂ පාර — video frame එකේ **ස්වාභාවික පික්සෙල්**
+   වලින්ම කියවනවා. 900px වලට කුඩා කළොත් 8mm QR එකේ module එකකට පික්සෙල්
+   2ක් විතරයි ඉතුරු වෙන්නේ → decoder එකට කියවන්නම බෑ. ඒකයි පරණ version එකේ
+   "QR එක කියවන්නේ නෑ" කියලා තිබ්බේ. */
+const QR_HI_MAX = 2400;           // high-res pass එකේ උපරිම පළල
+const QR_MIN_HI_MS = 380;         // high-res pass throttle (CPU බර නිසා)
+let qrLastHi = 0, qrLastFull = 0;
+const QR_MIN_FULL_MS = 650;       // සම්පූර්ණ frame එකේ pass එක
+const QR_HUNT_AFTER_MS = 4200;    // කී තත්පරයකට පස්සේ auto-hunt එක පටන් ගන්නද
+let qrHuntRunning = false, qrHuntCount = 0, qrHuntLast = 0;
+
 const QR_BD_TIMEOUT_MS = 220;     // BarcodeDetector එකකට උපරිම කාලය
 let qrBdSlow = 0, qrBdBackoffUntil = 0;
 const qrStat = { bd: 0, bdHit: 0, js: 0, jsHit: 0, deep: 0, deepHit: 0, lastMs: 0, lastVia: '' };
@@ -4774,6 +5005,75 @@ function withTimeout(p, ms) {
       if (!done) { done = true; clearTimeout(t); resolve(null); }
     });
   });
+}
+
+/**
+ * 📛 QR එක කියවාගන්නම බැරි උනාම පෙන්නන කාඩ් එක — හේතුවයි විසඳුම් 4ක්.
+ * (0.8cm QR එකකට auto-hunt එක දෙපාරක් fail වුනාම මේක එනවා)
+ */
+function qrShowTrouble() {
+  const st = $('#scanStatus');
+  if (!st || SCAN_MODE !== 'qr') return;
+  if (st.querySelector('.qr-trouble')) return;
+  st.innerHTML = '';
+  const card = el('div', 'msg warn qr-trouble');
+  card.innerHTML =
+    '📛 <strong>QR එක කියවාගන්න බැරි උනා</strong><br>' +
+    'මේ ටිකට් QR එක <strong>0.8cm × 0.8cm</strong> වගේ හරිම පොඩි නිසා කැමරාව ' +
+    'හරියට <strong>focus</strong> වෙන්න ඕන. මේ පිළිවෙළට try කරන්න:<br><br>' +
+    '① QR එක <strong>6-10cm</strong> දුරින් තියන්න <span class="warn-mini">(නියම කිට්ටුව ගියොත් focus එක යනවා)</span><br>' +
+    '② <strong>🔆 එළි</strong> දාන්න · කැමරාව QR එකට හරියට ගැලපෙන විදිහට <strong>🔍 Zoom</strong> 2-3x කරන්න<br>' +
+    '③ <strong>🎯 Focus</strong> බොත්තම ඔබන්න — නැත්නම් <strong>⚙️ උසස් සැකසුම් → Focus (අතින්)</strong> සර්වර් එකෙන් සකසන්න<br>' +
+    '④ තවම නොවුනොත් <strong>📷 Photo</strong> එකක් අරන් scan කරන්න, ' +
+    'නැත්නම් <strong>🤖 AI Scan</strong> එකට මාරු වෙලා සම්පූර්ණ ටිකට් එකේ photo එකක් දෙන්න';
+  const row = el('div', 'btnrow');
+  const b1 = el('button', 'btn', '🔍 නැවත උත්සාහ කරන්න');
+  b1.addEventListener('click', () => { st.innerHTML = ''; qrHuntCount = 0; qrTinyHunt(false); });
+  const b2 = el('button', 'btn sec', '📷 Photo එකක් අරන් scan');
+  b2.addEventListener('click', () => qrStillScan());
+  row.appendChild(b1); row.appendChild(b2);
+  card.appendChild(row);
+  st.appendChild(card);
+  openOtherMethods();
+  updateQrDiag();
+}
+
+/**
+ * 🔍 QR එකේ **ඇත්ත දත්ත** (raw text) පෙන්නන කොටුව — copy button එකක් එක්ක.
+ * ඇයි? parser එකට ගැලපෙන්නේ නැති QR එකක් ආවොත්, ඒ text එක අපිට එවන්න
+ * පුළුවන් නම් හරියටම tune කරන්න පුළුවන්. නිකම් "කියවන්නේ නෑ" කියනවට වඩා.
+ */
+function rawDebugBlock(raw) {
+  const box = el('details', 'adv rawdbg');
+  box.style.marginTop = '10px';
+  const sum = el('summary', '', '🔍 QR එකේ ඇත්ත දත්ත බලන්න / copy කරන්න');
+  box.appendChild(sum);
+  const body = el('div', 'advbody');
+  const ta = document.createElement('textarea');
+  ta.readOnly = true;
+  ta.style.cssText = 'width:100%;min-height:76px;font-family:ui-monospace,monospace;font-size:12px;' +
+    'background:#0d131d;color:#dbe7f5;border:1px solid var(--line);border-radius:9px;padding:8px';
+  ta.value = String(raw || '');
+  const row = el('div', 'btnrow');
+  const cp = el('button', 'btn sec', '📋 Copy කරන්න');
+  cp.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(String(raw || ''));
+      cp.textContent = '✅ Copy උනා';
+      setTimeout(() => { cp.textContent = '📋 Copy කරන්න'; }, 1800);
+    } catch (e) {
+      ta.select(); document.execCommand && document.execCommand('copy');
+      cp.textContent = '✅ Copy උනා';
+    }
+  });
+  row.appendChild(cp);
+  body.appendChild(ta);
+  body.appendChild(row);
+  body.appendChild(el('div', 'warn-mini',
+    '💡 මේක දිනුම් අංක වලට ගැලපෙන්නේ නැත්නම් මේ text එක app එකේ developer ට එවන්න — ' +
+    'එතකොට ඔයාගේ ටිකට් වල QR format එකට හරියටම හදන්න පුළුවන්.'));
+  box.appendChild(body);
+  return box;
 }
 
 /** 🔬 diagnostics පේළියට අතිරේක තොරතුරක් (crop ප්‍රමාණය වගේ) */
@@ -4923,6 +5223,155 @@ function qrDrawRoi(video, maxSide, minSide) {
   return qrCanvas;
 }
 
+/** සම්පූර්ණ frame එකම (crop නොකර) — guide රාමුවෙන් පිටත QR එකක් තිබ්බොත් */
+function qrDrawFull(video, maxSide) {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) return null;
+  const big = Math.max(vw, vh);
+  const k = (maxSide && big > maxSide) ? maxSide / big : 1;
+  const w = Math.max(32, Math.round(vw * k));
+  const h = Math.max(32, Math.round(vh * k));
+  if (!qrFullCanvas) {
+    qrFullCanvas = document.createElement('canvas');
+    qrFullCtx = qrFullCanvas.getContext('2d', { willReadFrequently: true });
+  }
+  if (qrFullCanvas.width !== w || qrFullCanvas.height !== h) {
+    qrFullCanvas.width = w; qrFullCanvas.height = h;
+  }
+  qrFullCtx.imageSmoothingQuality = 'high';
+  qrFullCtx.drawImage(video, 0, 0, vw, vh, 0, 0, w, h);
+  return qrFullCanvas;
+}
+let qrFullCanvas = null, qrFullCtx = null;
+
+/**
+ * 🎯 එක canvas එකක් **හැම decoder එකකින්ම** කියවනවා:
+ *   ① browser BarcodeDetector ② jsQR ③ ගැඹුරු pipeline (lattice + preprocess)
+ * (0.8cm QR එකකට මේ තුනම ඕන — එකකින් නොවුනොත් අනිත් එකෙන් වෙනවා)
+ */
+async function qrDecodeAny(canvas, opts) {
+  const o = opts || {};
+  if (!canvas) return null;
+  // ① detector
+  if (qrDetector) {
+    try {
+      const r = await withTimeout(qrDetector.detect(canvas), 600);
+      if (r && r.length && r[0].rawValue) return { text: String(r[0].rawValue), via: 'detector' };
+    } catch (e) { /* ignore */ }
+  }
+  // ② jsQR
+  if (window.jsQR && qrCtx) {
+    try {
+      const img = (canvas === qrCanvas && qrCtx)
+        ? qrCtx.getImageData(0, 0, canvas.width, canvas.height)
+        : canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+      const r = window.jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+      if (r && r.data) return { text: String(r.data), via: 'jsqr' };
+    } catch (e) { /* ignore */ }
+  }
+  // ③ ගැඹුරු pipeline
+  if (window.LKMQR) {
+    try {
+      const r = await window.LKMQR.decodeLattice(canvas, {
+        deep: true, maxSide: o.maxSide || QR_HI_MAX, budgetMs: o.budgetMs || 700,
+        hintModulePx: qrMeterPx || 0,
+      });
+      if (r && r.text) return { text: String(r.text), via: 'lattice' };
+    } catch (e) { /* ignore */ }
+  }
+  return null;
+}
+
+/**
+ * 🔎 **Auto-hunt** — පොඩි QR එක කියවාගන්න බැරි වුනාම තනියම පියවරෙන් පියවර
+ * උත්සාහ කරනවා: native-res crop → සම්පූර්ණ frame → full-resolution photo →
+ * zoom 2x → 3x → max. (මේක තමයි "අනිවාර්යයෙන් fix කරන්න ඕන" කියපු දේ.)
+ */
+async function qrTinyHunt(silent) {
+  if (qrHuntRunning || SCAN_MODE !== 'qr' || !camStream) return false;
+  const video = $('#cam');
+  if (!video || !video.videoWidth) return false;
+  qrHuntRunning = true;
+  qrHuntCount++;
+  qrHuntLast = performance.now();
+  const st = $('#scanStatus');
+  try {
+    if (!silent) msg(st, 'info', '🔎 පොඩි QR එකට ගැඹුරින් බලමින්… (පොඩ්ඩක් ඉන්න)');
+
+    /* ① ස්වාභාවික පික්සෙල් වලින් (crop + සම්පූර්ණ frame) */
+    for (const size of [QR_HI_MAX, 1600, 1100]) {
+      let r = await qrDecodeAny(qrDrawRoi(video, size, 0), { maxSide: size, budgetMs: 500 });
+      if (r) { qrStat.lastVia = r.via + ' (hi-res)'; return qrHitNow(r.text, 'hires'), true; }
+      r = await qrDecodeAny(qrDrawFull(video, size), { maxSide: size, budgetMs: 500 });
+      if (r) { qrStat.lastVia = r.via + ' (full)'; return qrHitNow(r.text, 'hires'), true; }
+    }
+
+    /* ② full-resolution photo එකක් (video frame එකට වඩා පික්සෙල් 4-13 ගුණයක්) */
+    const still = await qrGrabStillImage();
+    if (still) {
+      if (!silent) msg(st, 'info', '📸 Photo එකක් ගෙන full-resolution වලින් බලමින්…');
+      const r2 = await qrDecodeAny(still.canvas, { maxSide: 2600, budgetMs: 900 });
+      if (r2) { qrStat.lastVia = r2.via + ' (photo)'; return qrHitNow(r2.text, 'photo'), true; }
+    }
+
+    /* ③ zoom එක පියවරෙන් පියවර වැඩි කරලා (digital zoom = QR එක ලොකු වෙනවා) */
+    if (ZOOM_RANGE && ZOOM_RANGE.max > (ZOOM_RANGE.min || 1) + 0.2) {
+      const zmin = ZOOM_RANGE.min || 1;
+      const steps = [2, 3, Math.min(ZOOM_RANGE.max, 4)]
+        .filter(z => z > zmin + 0.2 && z <= ZOOM_RANGE.max);
+      for (const z of steps) {
+        await applyZoom(z);
+        if (!silent) msg(st, 'info', '🔍 Zoom ' + Number(z).toFixed(1) + 'x වලින් බලමින්…');
+        await new Promise(r => setTimeout(r, 420));
+        await refocusTrack('continuous');
+        let r = await qrDecodeAny(qrDrawRoi(video, QR_HI_MAX, 0), { maxSide: QR_HI_MAX, budgetMs: 550 });
+        if (r) { qrStat.lastVia = r.via + ' (zoom ' + Number(z).toFixed(1) + 'x)'; return qrHitNow(r.text, 'hires'), true; }
+        const stillZ = await qrGrabStillImage();
+        if (stillZ) {
+          r = await qrDecodeAny(stillZ.canvas, { maxSide: 2600, budgetMs: 900 });
+          if (r) { qrStat.lastVia = r.via + ' (photo@zoom)'; return qrHitNow(r.text, 'photo'), true; }
+        }
+      }
+      await applyZoom(zmin);           // ආපහු සාමාන්‍ය තත්ත්වයට
+    }
+    return false;
+  } catch (e) {
+    return false;
+  } finally {
+    qrHuntRunning = false;
+  }
+}
+
+/** 📸 full-resolution photo එකක් canvas එකකට (ImageCapture → canvas fallback) */
+async function qrGrabStillImage() {
+  const video = $('#cam');
+  if (!video || !video.videoWidth) return null;
+  const track = camStream && camStream.getVideoTracks ? camStream.getVideoTracks()[0] : null;
+  const IC = window.ImageCapture || (window.ImageCapture === undefined ? null : null);
+  if (track && typeof window.ImageCapture === 'function') {
+    try {
+      const cap = new window.ImageCapture(track);
+      const blob = await withTimeout(cap.takePhoto(), 2500);
+      if (blob) {
+        const bmp = await createImageBitmap(blob);
+        const cv = document.createElement('canvas');
+        cv.width = bmp.width; cv.height = bmp.height;
+        const cx = cv.getContext('2d', { willReadFrequently: true });
+        cx.drawImage(bmp, 0, 0);
+        try { bmp.close(); } catch (e) { /* ignore */ }
+        qrDiagNote = '📸 photo ' + bmp.width + '×' + bmp.height;
+        return { canvas: cv, w: cv.width, h: cv.height };
+      }
+    } catch (e) { /* ImageCapture වැඩ කරන්නේ නෑ → canvas එකෙන් */ }
+  }
+  const cv = document.createElement('canvas');
+  cv.width = video.videoWidth; cv.height = video.videoHeight;
+  const cx = cv.getContext('2d', { willReadFrequently: true });
+  cx.drawImage(video, 0, 0);
+  qrDiagNote = '📸 frame ' + cv.width + '×' + cv.height;
+  return { canvas: cv, w: cv.width, h: cv.height };
+}
+
 /** එක frame එකක් — හම්බුනොත් එවලේම loop එක නවත්තලා result එක ගන්නවා */
 async function qrProcessFrame() {
   if (qrBusy || !camStream || SCAN_MODE !== 'qr') return;
@@ -4988,6 +5437,64 @@ async function qrProcessFrame() {
         }
       }
     }
+    /* 🎯 3) HIGH-RES pass — **0.8cm QR එකට අනිවාර්යයි**
+       (900px වලට කුඩා කරනවා නම් QR එකේ module එකකට පික්සෙල් 2ක් විතරයි ඉතුරු වෙන්නේ) */
+    const nowHi = performance.now();
+    if (nowHi - qrLastHi >= QR_MIN_HI_MS) {
+      qrLastHi = nowHi;
+      const cvHi = qrDrawRoi(video, QR_HI_MAX, 0);
+      if (cvHi) {
+        if (window.jsQR) {
+          qrStat.js++;
+          try {
+            const img = qrCtx.getImageData(0, 0, cvHi.width, cvHi.height);
+            const res = window.jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+            if (res && res.data) {
+              qrStat.jsHit++; qrStat.lastVia = 'jsQR (hi-res)';
+              qrStat.lastMs = Math.round(performance.now() - tStage);
+              return qrHitNow(String(res.data), 'hires');
+            }
+          } catch (e) { /* ignore */ }
+        }
+        if (qrDetector && performance.now() >= qrBdBackoffUntil) {
+          const r = await withTimeout(qrDetector.detect(cvHi), 400);
+          if (r && r.length && r[0].rawValue) {
+            qrStat.bdHit++; qrStat.lastVia = 'detector (hi-res)';
+            return qrHitNow(String(r[0].rawValue), 'hires');
+          }
+        }
+      }
+    }
+
+    /* 🎯 4) සම්පූර්ණ frame එකේ pass එක (guide රාමුවෙන් පිටත QR එකක් තිබ්බොත්) */
+    const nowFull = performance.now();
+    if (nowFull - qrLastFull >= QR_MIN_FULL_MS) {
+      qrLastFull = nowFull;
+      const cvFull = qrDrawFull(video, 1600);
+      if (cvFull && window.jsQR) {
+        qrStat.js++;
+        try {
+          const fctx = cvFull.getContext('2d', { willReadFrequently: true });
+          const img = fctx.getImageData(0, 0, cvFull.width, cvFull.height);
+          const res = window.jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+          if (res && res.data) {
+            qrStat.jsHit++; qrStat.lastVia = 'jsQR (full frame)';
+            return qrHitNow(String(res.data), 'full');
+          }
+        } catch (e) { /* ignore */ }
+      }
+    }
+
+    /* 🔎 තත්පර 4ක් බලලත් නොවුනා නම් → **auto-hunt** එක පටන් ගන්නවා
+       (native-res → photo → zoom 2x/3x) — පොඩි QR එකට මේක තමයි අනිවාර්ය කොටස */
+    if (!qrHuntRunning && qrTries > 12 &&
+        performance.now() - qrStartedAt > QR_HUNT_AFTER_MS &&
+        performance.now() - qrHuntLast > 9000) {
+      qrTinyHunt(true).then(found => {
+        if (!found && qrHuntCount >= 2) qrShowTrouble();
+      });
+    }
+
     // තත්පරයකට වරක් විතරයි diagnostics update කරන්නේ (UI එක බර නොකරන්න)
     if (qrTries % 12 === 0) updateQrDiag();
     // 3) 🧠 ගැඹුරු pipeline — frame stacking + binarization lattice + මීටරය
@@ -5061,7 +5568,8 @@ async function qrDeepAttempt(video, force) {
   const roi = qrRoiPx(video);
   if (!roi) return;
 
-  const gray = qrRoiGray(video, roi, 640);
+  // 🎯 0.8cm QR එකට 640px මදි — 1200px වලින් ගන්නවා (module එකට පික්සෙල් වැඩියි)
+  const gray = qrRoiGray(video, roi, 1200);
   if (!gray) return;
 
   // (1) මීටරය — module එකකට පික්සෙල් කීයද + ටිකට් QR එක ඇත්තටම තියෙනවද
@@ -5086,7 +5594,7 @@ async function qrDeepAttempt(video, force) {
           .putImageData(window.LKMQR.grayToImageData(avg, gray.w, gray.h), 0, 0);
         // modulePx hint එක දෙනවා → decoder එක **හරි ප්‍රමාණයටම** scale කරනවා
         const r = await window.LKMQR.decodeLattice(sc, {
-          roi: { x: 0, y: 0, w: gray.w, h: gray.h }, deep: true, maxSide: 900, budgetMs: 320,
+          roi: { x: 0, y: 0, w: gray.w, h: gray.h }, deep: true, maxSide: 2000, budgetMs: 420,
           hintModulePx: qrMeterPx || 0,
         });
         if (r && r.text) { qrStat.deepHit++; qrStat.lastVia = 'frame-stack'; return qrHitNow(r.text, 'stack'); }
@@ -5097,7 +5605,7 @@ async function qrDeepAttempt(video, force) {
   // (3) ඇත්ත video pixels වලින්ම (upscale කරලා) — දෙවෙනි අවස්ථාව
   try {
     const r = await window.LKMQR.decodeLattice(video, {
-      roi: roi, deep: true, maxSide: 900, budgetMs: 340,
+      roi: roi, deep: true, maxSide: 2000, budgetMs: 460,
       hintModulePx: qrMeterPx || 0,
     });
     if (r && r.text) { qrStat.deepHit++; qrStat.lastVia = 'deep lattice'; return qrHitNow(r.text, 'lattice'); }
@@ -5276,16 +5784,19 @@ async function qrPhotoScan(file) {
 
 /** QR scan mode එකේදී විතරක් අලුත් බොත්තම් පෙන්නනවා */
 function qrUiForMode(on) {
-  ['#qrHiResBtn', '#qrPhotoLbl', '#qrMacroTip'].forEach(sel => {
+  // QR mode එකේදී විතරක් පේන දේවල් (photo upload/capture දෙක දැන් හැම mode එකකම තියෙනවා)
+  ['#qrMacroTip'].forEach(sel => {
     const el = $(sel);
     if (el) el.style.display = on ? '' : 'none';
   });
+  const up = $('#uploadBtn');
+  if (up) up.textContent = on
+    ? '🖼️ QR Photo එකක් එවන්න (camera හෝ gallery)'
+    : '🖼️ Photo එකක් එවන්න (camera හෝ gallery)';
 }
 
 // එක පාරක් විතරයි wire කරන්නේ
 (function wireQrExtras() {
-  const btn = $('#qrHiResBtn');
-  if (btn) btn.addEventListener('click', qrStillScan);
 
   // 🔍 "දැන්ම" — එක පාරක් ගැඹුරින්ම scan (auto loop එක හෙමින් නම් ගොඩක් උදව්)
   const now2 = $('#scanNowBtn');
@@ -5296,12 +5807,6 @@ function qrUiForMode(on) {
 
   // QR mode එකට ආවම diagnostics line එක update කරනවා
   updateQrDiag();
-  const inp = $('#qrPhotoInput');
-  if (inp) inp.addEventListener('change', ev => {
-    const f = ev.target.files && ev.target.files[0];
-    if (f) qrPhotoScan(f);
-    ev.target.value = '';
-  });
 })();
 
 /** 🎯 හම්බුනා — එවලේම ශබ්දය + result (තව try කරන්නේ නෑ) */
@@ -5438,6 +5943,7 @@ function prefillChecker(lot, p) {
 }
 
 
+let LAST_QR_PARSE = null;
 async function onQrDecoded(raw, via, ms) {
   const host = $('#scanMatch');
   host.innerHTML = '';
@@ -5449,6 +5955,7 @@ async function onQrDecoded(raw, via, ms) {
     (via === 'browser' ? 'browser detector' : via === 'jsqr' ? 'jsQR (offline decoder)' : 'AI (Gemini)')));
 
   const p = parseQrPayload(raw);
+  LAST_QR_PARSE = p;                      // 🔌 offline.js overlay එකට
   const lot = (p.slug && LOTTERIES.find(l => l.slug === p.slug)) || CURRENT || null;
 
   /* 🔌 offline.js — QR එක වර්ග කිරීම:
@@ -5476,7 +5983,8 @@ async function onQrDecoded(raw, via, ms) {
       (p.drawNo ? ' · Draw ' + esc(p.drawNo) : '') + (p.date ? ' · ' + esc(p.date) : '')));
     host.appendChild(box);
     return matchNumbersAgainstResults(lot.slug, p.pairs.slice(0, need), null, 'qr',
-      { letter: p.letter, zodiac: p.zodiac, superNumber: p.superNumber, drawNo: p.drawNo });
+      { letter: p.letter, zodiac: p.zodiac, superNumber: p.superNumber,
+        specialLetter: p.specialLetter, drawNo: p.drawNo, parsed: p });
   }
 
   /* ---------- (ආ) අංක තියෙනවා ඒත් යමක් අඩු/සැක සහිත ----------
@@ -5487,6 +5995,7 @@ async function onQrDecoded(raw, via, ms) {
       '⚠️ <strong>QR එක සම්පූර්ණයෙන්ම කියවාගන්න බැරි උනා</strong> — ඒ නිසා ' +
       'ප්‍රතිඵලය බලන්න කලින් පහත දේවල් තහවුරු කරන්න. (වැරදි ප්‍රතිඵලයක් පෙන්නනවට වඩා මේක හොඳයි.)'));
     box.appendChild(el('div', '', qrReadGrid(p, lot)));
+    box.appendChild(rawDebugBlock(raw));        // 🔍 ඇත්ත QR දත්ත (copy කරන්න පුළුවන්)
 
     if (p.missing && p.missing.length) {
       const names = { letter: 'අකුර', zodiac: 'රාශිය (ලග්නය)', superNumber: 'special/super අංකය', numbers: 'ටිකට් අංක' };
@@ -5495,18 +6004,22 @@ async function onQrDecoded(raw, via, ms) {
         (p.missing.indexOf('numbers') >= 0 ? ' — අංක අතින් දාන්න' : ' — ප්‍රතිඵලය වැරදි වෙන්න පුළුවන්')));
     }
 
+    /* ⚠️ buttons **2ක් විතරයි** — කලින් 3ක් තිබ්බා (එකම වැඩේ පාරවල් දෙකක් වගේ පෙනුනා).
+       AI Scan එකට යන්න ඕන නම් උඩ තියෙන mode button එකෙන් පුළුවන් → ඒක hint එකක් විදිහට. */
     const row = el('div', 'btnrow');
     const okBtn = el('button', 'btn', '✅ දත්ත හරි — ප්‍රතිඵලය බලන්න');
     okBtn.addEventListener('click', () => {
       matchNumbersAgainstResults(lot.slug, p.pairs.slice(0, need), null, 'qr',
-        { letter: p.letter, zodiac: p.zodiac, superNumber: p.superNumber, drawNo: p.drawNo });
+        { letter: p.letter, zodiac: p.zodiac, superNumber: p.superNumber,
+          specialLetter: p.specialLetter, drawNo: p.drawNo, parsed: p });
     });
     const editBtn = el('button', 'btn sec', '✏️ අතින් නිවැරදි කරන්න');
     editBtn.addEventListener('click', () => { prefillChecker(lot, p); goto('check'); });
-    const aiBtn = el('button', 'btn sec', '🤖 AI Scan එකෙන් try කරන්න');
-    aiBtn.addEventListener('click', () => { setScanMode('total'); });
-    row.appendChild(okBtn); row.appendChild(editBtn); row.appendChild(aiBtn);
+    row.appendChild(okBtn); row.appendChild(editBtn);
     box.appendChild(row);
+    box.appendChild(el('div', 'warn-mini',
+      '💡 QR එක හොඳට පේන්නේ නැත්නම් උඩ <strong>🤖 AI Scan</strong> එකට මාරු වෙලා ' +
+      'සම්පූර්ණ ටිකට් එකේ photo එකක් දෙන්න.'));
     host.appendChild(box);
     return;
   }
@@ -5520,13 +6033,14 @@ async function onQrDecoded(raw, via, ms) {
   if (p.pairs.length || p.drawNo || p.date || p.serial) {
     box.appendChild(el('div', '', qrReadGrid(p, lot)));
   }
+  box.appendChild(rawDebugBlock(raw));        // 🔍 ඇත්ත QR දත්ත (copy කරන්න පුළුවන්)
   const row2 = el('div', 'btnrow');
-  const b = el('button', 'btn', '✏️ අතින් පරීක්ෂාවට යන්න');
+  const b = el('button', 'btn', '✏️ අංක අතින් දාලා බලන්න');
   b.addEventListener('click', () => { if (lot) prefillChecker(lot, p); goto('check'); });
-  const b2 = el('button', 'btn sec', '🤖 AI Scan එකෙන් try කරන්න');
-  b2.addEventListener('click', () => setScanMode('total'));
-  row2.appendChild(b); row2.appendChild(b2);
+  row2.appendChild(b);
   box.appendChild(row2);
+  box.appendChild(el('div', 'warn-mini',
+    '💡 නැත්නම් <strong>🤖 AI Scan</strong> එකට මාරු වෙලා සම්පූර්ණ ටිකට් එකේ photo එකක් දෙන්න.'));
   host.appendChild(box);
 }
 
@@ -5550,10 +6064,27 @@ function setScanMode(mode) {
   stopQrLoop();
   if (qr && camStream) startQrLoop();
   // QR mode එකේදී අපි photo එකක් ගන්නේ නෑ — auto කියවනවා
-  $('#shotBtn').style.display = qr ? 'none' : (camStream ? 'block' : 'none');
+  $('#captureBtn').style.display = camStream ? 'flex' : 'none';
 }
 
 /* ---------- 🔊 ශබ්ද button ---------- */
+const soundTestBtn = $('#soundTestBtn');
+if (soundTestBtn) {
+  soundTestBtn.addEventListener('click', () => {
+    unlockAudio();
+    const st = $('#scanStatus');
+    const s1 = (window.LKMAnnounce)
+      ? window.LKMAnnounce.winSentence(40, null, 'Govisetha')
+      : 'Congratulations! You have won forty rupees.';
+    const s2 = (window.LKMAnnounce) ? window.LKMAnnounce.loseSentence()
+      : 'Sorry, you have lost this time. Try again.';
+    chime('win');
+    setTimeout(() => speakText(s1), 400);
+    setTimeout(() => { chime('lose'); setTimeout(() => speakText(s2), 400); }, 3600);
+    if (st) msg(st, 'info', '🎧 හඬ පරීක්ෂාව:<br>① "' + s1 + '"<br>② "' + s2 + '"');
+  });
+}
+
 const soundBtn = $('#soundBtn');
 if (soundBtn) {
   soundBtn.addEventListener('click', () => {
@@ -6024,7 +6555,10 @@ window.__lkm = {
     qrUsesRvfc: typeof HTMLVideoElement !== 'undefined' && 'requestVideoFrameCallback' in HTMLVideoElement.prototype,
   }),
   // ---- automated tests වලට ඕන internal functions (දත්ත/secret බෙදාගන්නේ නෑ) ----
-  announceWin, isTicketReadable, renderUnreadable,
+  announceWin, announceResult, isTicketReadable, renderUnreadable,
+  lastParse: () => LAST_QR_PARSE,
+  verifyTicket: (lot, draw, ticket, parsed) => (window.LKMTicketVerify
+    ? window.LKMTicketVerify.verify(lot, draw, ticket, parsed, LANG) : null),
   renderInfo, renderShare, setScanMode, parseQrPayload, onQrDecoded,
   // 🌐 භාෂා පරිවර්තනය පරීක්ෂා කරන්න (test එකට විතරයි වැදගත්)
   t, lang: () => LANG,

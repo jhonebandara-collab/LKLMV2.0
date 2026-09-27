@@ -30,6 +30,8 @@ const SHELL_FILES = [
   '/index.html',
   '/offline.html',
   '/qr-parse.js',
+  '/ticket-verify.js',
+  '/announce.js',
   '/qr-decode.js',
   '/voice.js',
   '/vendor/jsqr.min.js',

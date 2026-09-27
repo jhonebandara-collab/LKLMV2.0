@@ -1,6 +1,6 @@
 # 🎟️ LK Lottery Master — සම්පූර්ණ ගයිඩ් (සිංහල)
 
-> **Version 1.3.0** · ශ්‍රී ලංකාවේ **NLB** සහ **DLB** ලොතරැයි ප්‍රතිඵල බලන්න,
+> **Version 1.5.0** · ශ්‍රී ලංකාවේ **NLB** සහ **DLB** ලොතරැයි ප්‍රතිඵල බලන්න,
 > ටිකට් QR එක **scan** කරලා ඇත්ත **දිනුම් මුදල** දැනගන්න, **offline** එකේත් වැඩ කරන,
 > **AI** එකෙන් ටිකට් කියවන, **තමන්ගේ වාසනාව** අනුමාන කරන web app එකක්.
 
@@ -16,6 +16,93 @@
 ## 🆕 v1.3.0 — මොනවද අලුතෙන් හදලා තියෙනවා
 
 මේ version එකේදී **QR කියවීමයි පෙන්වීමයි** අලුතින්ම හදලා තියෙනවා.
+
+### 0. 🆕 v1.5.0 — 🎯 0.8cm QR · 🎯 Chrome focus · 🏆 prize රටා 16ම තහවුරු · 🔊 හඬ unlock
+
+**ඔබ දුන්නු `Sri_Lanka_Lottery_Prize_Structures_NLB_DLB` ලේඛනය අනුව ලොතරැයි 16ම
+පරීක්ෂා කළා — දැන් test 145ක් ඒක ඔප්පු කරනවා (`npm run test:prize`).**
+
+#### 🔴 හම්බුනු ඇත්ත bug එකක් (හදලා)
+**අද සම්පත** (game 3 = අකුර + තනි ඉලක්කම් 4) එකේ ලේඛනයේ [1.7] අනුව තියෙන
+**3 වන (ඕනෑම ඉලක්කම් 3ක්) = රු.4,000** සහ **4 වන (ඕනෑම ඉලක්කම් 2ක්) = රු.1,000**
+tiers දෙක engine එකේ **නොතිබ්බා** → ඇත්තට දිනපු ටිකට් එකක් "දිනුමක් නෑ" කියලා
+පෙන්නුවා. දැන් හදලා, test එකකුත් දාලා තියෙනවා.
+
+#### 🎯 0.8cm × 0.8cm QR එක — "කියවන්නේම නෑ" ප්‍රශ්නය විසඳලා
+හේතුව හොයාගත්තා: decoder එකට යවන කොටස **900px වලට කුඩා** කරනවා. ටිකට් එක
+105mm පළල, QR එක 8mm → 4K frame එකක QR එකේ පික්සෙල් ~290. ඒත් 900px වලට
+කුඩා කළාම ඉතුරු වෙන්නේ ~68px → QR module එකකට පික්සෙල් **2ක්** → කියවන්නම බෑ.
+දැන් තියෙන දේ:
+* **ස්වාභාවික පික්සෙල් වලින්ම කියවන high-res පාර** (2400px — කුඩා නොකර)
+* **සම්පූර්ණ frame එකේ පාර** (රාමුවෙන් පිටත QR එකක් තිබ්බත්)
+* **🔎 auto-hunt** — තත්පර ~4ක් කියවාගන්න බැරි උනාම තනියම:
+  native-res → **full-resolution photo (ImageCapture)** → **zoom 2x → 3x → 4x** →
+  ආයෙ photo. (ඔබ බොත්තමක් ඔබන්න ඕන නෑ)
+* ඒ හැම පියවරක්ම fail වුනොත් **📛 උපදෙස් කාඩ් එකක්** + ආයෙ උත්සාහ/Photo buttons
+* 🔍 **"QR එකේ ඇත්ත දත්ත"** කියන copy-button එකක් එක්ක — QR එක කියවුනත්
+  results එක්ක ගැලපෙන්නේ නැත්නම් ඒ **text එක copy කරලා අපිට එවන්න** පුළුවන්.
+  එතකොට ඔයාගේ ටිකට් QR format එකට parser එක 100% tune කරන්න පුළුවන්.
+
+#### 🎯 Chrome focus (හරියට focus වෙන්නේ නෑ)
+* **හැම 2.5 තත්පරයකට වතාවක්** continuous focus එක අලුතින් apply කරනවා (Android
+  Chrome එකේ AF එක නිකම් stall වෙනවා)
+* **🎯 Focus (අතින්)** slider එකක් — `focusDistance` support කරන device වලට
+  (auto-focus එක 8mm QR එකට lock වෙන්නේ නැති වෙලාවට මේක තමයි ඉක්මන් විසඳුම)
+* 🎯 Focus බොත්තම — manual → continuous cycle + stream restart එකක් (අලුත් AF sweep)
+
+#### 🔊 හඬ play නොවීම (දිනුම + පරාද දෙකම)
+* **Audio unlock** — පළවෙනි තට්ටුව (tap) එකේදීම AudioContext එක resume කරලා TTS
+  engine එක warm කරනවා. (මේක නොකළොත් Chrome/Safari වල හඬ play වෙන්නේම නෑ)
+* `cancel()` → 130ms → `speak()` (Chrome Android එකේ එකම tick එකේ දැම්මොත් utterance
+  එක නැති වෙනවා — ඒකයි කලින් හඬ ආවේ නැත්තේ)
+* දිනුමට උඩු ගමන් 3ක්, පරාදයට **පහළ ගමන් 2ක්** (වෙනස් හඬ)
+* **🎧 හඬ පරීක්ෂා කරන්න** බොත්තම — ⚙️ උසස් සැකසුම් යටතේ. ඔබලා phone එකේදීම
+  දිනුම් + පරාද වාක්‍ය දෙක ඇහෙනවද කියලා බලන්න පුළුවන්.
+
+### 1. 🔳 QR parser එක සම්පූර්ණයෙන්ම අලුතින් (`public/qr-parse.js`)
+
+#### 🎟️ 1. "QR එකේ තියෙන හැම දෙයක්ම" අරගෙන ප්‍රතිඵලය එක්ක match කරනවා
+QR එකේ තියෙන **ලොතරැයිය · දිනය · draw අංකය · English අකුර · ලග්නය (රාශිය) ·
+special letter · special number · ටිකට් අංක (1-ඉලක්කම් හෝ 2-ඉලක්කම්)** — මේ හැම එකක්ම
+අරගෙන, දිනුම් ප්‍රතිඵලයේ තියෙන දේවල් එක්ක **එකින් එක සැසඳීමක්** ප්‍රතිඵලය ඇතුළේ
+පෙන්නනවා (`public/ticket-verify.js`):
+
+| | ඔබේ ටිකට් එක | | දිනුම් ප්‍රතිඵලය | |
+|---|---|---|---|---|
+| අකුර | **S** | = | **S** | ✅ |
+| ටිකට් අංක 1 | **9** | ≠ | 4 | ❌ |
+| … | | | | |
+
+* ✅ හරි · ❌ ගැලපෙන්නේ නෑ · ⚠️ QR එකේ ඒක නෑ (වැරදි කියලා කියන්නේ නෑ)
+* අංක ටික වර්ණ චිප් වලින් — **දිනුම් අංක අතරේ තියෙන ඒවා කොළ පාටින්**, නැති ඒවා
+  ඉරි ඇඳලා ("3 / 6 ගැලපුනා" කියලා ගණනත් පෙන්නනවා)
+* **draw අංකය / දිනය / ලොතරැයියත්** සැසඳෙනවා — ඒ නිසා "වැරදි draw එකක් එක්ක
+  check වුනාද" කියන ප්‍රශ්නය ඉතුරු වෙන්නේ නෑ
+* 🔁 **ඉලක්කම් 1/2 ආකාරය වෙනස් වුනත්** ගානට හදාගන්නවා — උදා: ලොතරැයියට
+  2 බැගින් 4ක් ඕන ඒත් QR එකේ `1 2 4 5 6 7 8 9` කියලා තිබ්බොත් `12 45 67 89` කියලා
+  හදාගන්නවා (ගාන **හරියටම ගැලපෙනවා නම් විතරයි** — නැත්නම් අනුමාන කරන්නේ නෑ)
+* Special letter එකක් තිබ්බොත් ඒකත් කියවලා පෙන්නනවා (`🅰️ letters[]`)
+
+#### 🔊 2. දිනුම්/පරාද හඬ — මුදල **වචන වලින්**, grammar හරියටම (`public/announce.js`)
+| අවස්ථාව | ශබ්දයෙන් කියන දේ |
+|---|---|
+| 🏆 දිනුමක් | “**Congratulations! You have won forty rupees.**” |
+| 🏆 ලොකු දිනුමක් | “**Congratulations! You have won twenty million rupees in Mahajana Sampatha.**” |
+| 🏆 ටයර් එකක් | “Congratulations! You have won forty rupees. **That is the 3rd prize.**” |
+| 😔 දිනුමක් නෑ | “**Sorry, you have lost this time. Try again.**” |
+| ❓ දත්ත නෑ | “The result for this ticket is not available yet. Please check again later.” |
+
+* මුදල **ඉලක්කම් වලින් නෙවෙයි වචන වලින්** (කලින් “40” කියවද්දී අවුල් ඇහුනා) —
+  `40 → forty` · `1 → one rupee` (ඒක වචනය වෙනස්) · `1,250 → one thousand two hundred and fifty`
+* 🔊 සැකසුම් button එකෙන් හඬ **ක්‍රියාත්මක/නිශ්ශබ්ද** කරන්න පුළුවන්
+* ⚠️ කලින් එකම ප්‍රතිඵලයක් සමහර වෙලාවට **පාර 2-3ක්** කිව්වා — දැන් එක පාරයි
+
+#### 🧹 3. එකම වැඩ කරන buttons අයින් කළා (සරලයි)
+| කලින් (6ක්) | දැන් (3ක්) |
+|---|---|
+| 📸 කැමරාවෙන් Scan · 📱 Phone camera app · 🖼️ Gallery | **📸 කැමරාවෙන් Scan** (එකක්) + **🖼️ Photo එකක් එවන්න** (එකම file input එකෙන් camera/gallery දෙකම) |
+| 📷 Photo ගන්න (AI) · 📸 උසස් ගුණත්ව Scan (QR) | **📷 Photo** (mode එකට අනුව තනියම හරි වැඩේ කරනවා) |
+| confirm card එකේ buttons 3ක් | **2යි** (✅ තහවුරු · ✏️ අතින්) — AI එකට යන්න hint එකක් විතරයි |
 
 ### 1. 🔳 QR parser එක සම්පූර්ණයෙන්ම අලුතින් (`public/qr-parse.js`)
 පරණ parser එකේ තිබ්බ **වැරදි 4ක්** හදලා තියෙනවා:
@@ -129,9 +216,11 @@ npm start            # http://localhost:3000
 | `npm start` | Server එක start (offline prize engine එකත් ඉන්නම build වෙනවා) |
 | `npm run scrape` | ප්‍රතිඵල දැන්ම DLB/NLB එකෙන් බාගන්න |
 | `npm test` | Prize engine + parser tests **44** |
-| `npm run test:qr` | 🔳 QR payload parser tests **52** (ලොතරැයි 16ම) |
+| `npm run test:prize` | 🏆 **NLB/DLB රටා 16ම** ඔබ දුන්නු ලේඛනයට ගැලපෙනවද **145** |
+| `npm run test:qr` | 🔳 QR payload parser tests **59** (ලොතරැයි 16ම · 1/2 ඉලක්කම් auto) |
+| `npm run test:verify` | 🎟️ සැසඳීම + 🔊 හඬ වාක්‍ය tests **45** |
 | `npm run test:offline` | 📴 Offline layer tests **30** |
-| `npm run test:e2e` | 🌐 ඇත්ත browser එකකින් frontend tests **59** (Chrome/Edge ඕන) |
+| `npm run test:e2e` | 🌐 ඇත්ත browser එකකින් frontend tests **80** (Chrome/Edge ඕන) |
 | `npm run test:gemini` | Gemini keys + model එක වැඩ කරනවද |
 | `npm run build:offline` | `prizes.js` → `public/prize-engine.js` ආයෙ build කරන්න |
 
@@ -370,7 +459,9 @@ prize structure එකත් `prizes.js` එකට දාන්න (නැත්
 
 ```bash
 npm test              # ✅ 44 tests — prize tables, parser, draw resolver
-npm run test:qr       # ✅ 52 tests — QR payload parser (ලොතරැයි 16ම)
+npm run test:prize    # ✅ 145 tests — NLB/DLB රටා 16ම (ඔබ දුන්නු ලේඛනය අනුව)
+npm run test:qr       # ✅ 59 tests — QR payload parser (ලොතරැයි 16ම)
+npm run test:verify   # ✅ 45 tests — සැසඳීම + හඬ වාක්‍ය (මුදල වචන වලින්)
 npm run test:offline  # ✅ 30 tests — offline bundle, PWA files, engine parity
 npm run test:e2e      # ✅ 59 tests — ඇත්ත browser එකකින් (Chrome/Edge)
 npm run test:gemini   # ✅ 5 keys + model එක live check

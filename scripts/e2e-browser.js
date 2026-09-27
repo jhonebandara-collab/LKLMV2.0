@@ -431,7 +431,7 @@ async function main() {
       const ctl = document.getElementById('scanCamCtl');
       const other = document.getElementById('otherMethods');
       const purpose = document.getElementById('scanPurposeNote');
-      const native = document.getElementById('nativeCamBtn');
+      const native = document.getElementById('uploadBtn');
       const before = (a, b) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
       return {
         hasActions: !!actions,
@@ -445,17 +445,27 @@ async function main() {
         diagLine: !!document.getElementById('qrDiagLine'),
         torchBtn: !!document.getElementById('torchBtn'),
         scanNowBtn: !!document.getElementById('scanNowBtn'),
+        captureBtn: !!document.getElementById('captureBtn'),
+        uploadBtn: !!document.getElementById('uploadBtn'),
+        duplicates: ['shotBtn', 'qrHiResBtn', 'nativeCamBtn', 'galleryBtn', 'qrPhotoInput', 'nativeCamInput', 'galleryInput']
+          .filter(id => !!document.getElementById(id)),
       };
     })()`);
     ok('පහළ action bar එක තියෙනවා', layout.hasActions);
     ok('action bar එක camera එකට **යටින්** (thumb-reachable)', layout.actionsAfterCam);
     ok('camera පාලන (zoom/focus/දැන්ම) action bar එකේ ඇතුළේ', layout.ctlInActions);
     ok('කැමරාව වැහිලා ඉද්දී පාලන හංගලා', layout.ctlHiddenInitially);
-    ok('වෙනත් ක්රම (phone cam/gallery) collapsed', layout.otherCollapsed && layout.nativeInsideOther);
+    ok('වෙනත් ක්රම (photo එකක් එවන්න) collapsed', layout.otherCollapsed && layout.nativeInsideOther);
     ok('කෙටි hint එකක් විතරයි (දිග පැහැදිලි කිරීම් අයින්)', layout.purposeCompact);
     ok('action bar එක sticky (මාපටැඟිල්ලට ළඟට එනවා)', layout.sticky);
     ok('🔬 diagnostics + 🔆 torch + 🔍 දැන්ම buttons',
       layout.diagLine && layout.torchBtn && layout.scanNowBtn);
+    ok('📷 Photo එකක් ගන්න button එක 1ක් විතරයි (capture)',
+      layout.captureBtn);
+    ok('🖼️ Photo එවන්න button එක 1ක් විතරයි (upload)',
+      layout.uploadBtn);
+    ok('⚠️ එකම වැඩේ කරන පරණ buttons අයින් කරලා (duplicates 0)',
+      layout.duplicates.length === 0, 'ඉතුරු: ' + layout.duplicates.join(', '));
 
     /* ---------- 4e. 📐 මිනුම් — button ප්‍රමාණය + කැමරාව open වුනාම layout ---------- */
     const metrics = await evaluate(cdp, sessionId, `(async () => {
@@ -508,6 +518,126 @@ async function main() {
     ok('action bar එක කෙටියි (තිරයෙන් වැඩි කොටසක් ගන්නේ නෑ)',
       metrics.barH <= 200, 'height=' + metrics.barH + 'px');
     ok('තිරස් scroll නෑ (mobile overflow නෑ)', metrics.overflowX <= 1, 'overflowX=' + metrics.overflowX);
+
+    /* ---------- 4f. 🎯 සම්පූර්ණ chain — ඇත්ත draw එකකින් QR → check → compare → හඬ ---------- */
+    section('4f. 🎯 QR → check → සැසඳීම → ශබ්දය (ඇත්ත දත්ත වලින්)');
+    const chain = await evaluate(cdp, sessionId, `(async () => {
+      // 1) ඇත්ත draw එකක් ගන්නවා (1-ඉලක්කම් 6ක් තියෙන මහජන සම්පත්)
+      const latest = await fetch('/api/latest').then(r => r.json());
+      const row = (latest.results || []).find(x => x.slug === 'mahajana-sampatha') || (latest.results || [])[0];
+      if (!row) return { error: 'no draw data' };
+
+      // 2) QR payload එකක් හදනවා — හරියටම ඒ draw එකේ අංක/අකුරු වලින්
+      const parts = ['MAHAJANA SAMPATHA', 'DRAW:' + row.drawNo, 'DATE:' + row.date];
+      if (row.letter) parts.push('LETTER:' + row.letter);
+      parts.push((row.numbers || []).join(' '));
+      const payload = parts.join(' | ');
+
+      // 3) app එකේ ඇත්ත flow එකෙන් scan කරනවා
+      document.querySelector('#tabs button[data-tab="scan"]').click();
+      await window.__lkm.onQrDecoded(payload, 'jsqr', 120);
+      await new Promise(r => setTimeout(r, 1200));
+
+      const host = document.getElementById('scanMatch');
+      const cmpHtml = host.querySelector('.cmp');
+      const result = host.querySelector('.result');
+
+      // 4) ශබ්දය ON ද කියලා සහතික කරගන්නවා (කලින් test එකක් off කරලා තිබ්බොත්)
+      const sb = document.getElementById('soundBtn');
+      if (sb && /නිශ්ශබ්දයි/.test(sb.textContent)) { sb.click(); await new Promise(r => setTimeout(r, 120)); }
+
+      // 5) 🔊 වාක්‍ය අල්ලගන්නවා — speak() එකට යන text එක බාරගන්නවා
+      let spoken = null;
+      const origSpeak = window.speechSynthesis ? window.speechSynthesis.speak : null;
+      try {
+        if (window.speechSynthesis) {
+          window.speechSynthesis.speak = u => { spoken = String(u && u.text || ''); };
+        }
+      } catch (e) { /* ignore */ }
+      try {
+        window.__lkm.announceResult({ won: false, lottery: { name: 'Govisetha' } });
+        await new Promise(r => setTimeout(r, 700));
+        const loseSpoken = spoken;
+        spoken = null;
+        window.__lkm.announceResult({ won: true, prizeAmountRs: 40, prizeLabel: '3RD',
+                                      lottery: { name: 'Govisetha' } });
+        await new Promise(r => setTimeout(r, 800));
+        window.__loseSpoken = loseSpoken;
+      } catch (e) { /* ignore */ }
+      window.__spokenFinal = spoken;
+      try { if (origSpeak) window.speechSynthesis.speak = origSpeak; } catch (e) {}
+      const diag = (document.getElementById('qrDiagLine') || {}).innerText || '';
+
+      return {
+        payload: payload,
+        drawNo: row.drawNo,
+        letter: row.letter || null,
+        numbers: row.numbers || [],
+        cmpExists: !!cmpHtml,
+        cmpClass: cmpHtml ? cmpHtml.className : null,
+        cmpText: cmpHtml ? cmpHtml.innerText.slice(0, 300) : null,
+        hitCount: cmpHtml ? (cmpHtml.innerText.match(/found in the draw|දිනුම් අංක අතරේ තියෙනවා/) ? true : false) : false,
+        verdictWon: !!(result && /දිනුම්|වාසනා|won/i.test(result.innerText)),
+        spoken: window.__spokenFinal,
+        loseSpoken: window.__loseSpoken,
+        diag: diag,
+      };
+    })()`, true, true);
+
+    if (chain.error) {
+      ok('chain test එකට දත්ත හම්බුනා', false, chain.error);
+    } else {
+      ok('QR payload එක හදලා scan කළා (draw ' + chain.drawNo + ')', !!chain.payload);
+      ok('🎟️ සැසඳීමේ ටේබලය ප්‍රතිඵලය ඇතුළේ තියෙනවා', chain.cmpExists);
+      ok('හැම field එකක්ම ගැලපුනා → cmp.ok (කොළ පාට)',
+        !!(chain.cmpClass && chain.cmpClass.indexOf('ok') >= 0), chain.cmpClass || '');
+      ok('ප්‍රතිඵලය "දිනුම්" ලෙස පෙන්නනවා', chain.verdictWon);
+      ok('🔊 පරාද වුනාම: "Sorry, you have lost this time. Try again."',
+        chain.loseSpoken === 'Sorry, you have lost this time. Try again.' ||
+        chain.diag.indexOf('You have lost this time') >= 0,
+        'spoken=' + JSON.stringify(chain.loseSpoken));
+      ok('🔊 දිනුමක්: මුදල වචන වලින් — "…forty rupees…" (ඉලක්කම් නෙවෙයි)',
+        (chain.spoken && /forty rupees/.test(chain.spoken)) || /forty rupees/.test(chain.diag),
+        'spoken=' + JSON.stringify(chain.spoken) + ' | diag=' + (chain.diag || '').slice(0, 120));
+    }
+
+    /* ---------- 4g. 🎯 0.8cm QR සහාය + 🎧 හඬ මෙවලම් ---------- */
+    section('4g. 🎯 පොඩි QR (0.8cm) සහාය + හඬ මෙවලම්');
+    const tools = await evaluate(cdp, sessionId, `(() => {
+      const has = id => !!document.getElementById(id);
+      const fn = n => typeof window.__lkm[n] === 'function';
+      return {
+        soundTest: has('soundTestBtn'),
+        focusSlider: has('focusSlider') && has('focusWrap'),
+        zoomSlider: has('zoomSlider'),
+        captureBtn: has('captureBtn'),
+        // diagnostics පේළියේ high-res පාර ගැන තොරතුරු තියෙනවද
+        diag: (document.getElementById('qrDiagLine') || {}).innerText || '',
+        htmlHasHiRes: document.documentElement.innerHTML.indexOf('QR_HI_MAX') >= 0 ||
+                      document.documentElement.innerHTML.indexOf('hi-res') >= 0,
+      };
+    })()`);
+    ok('🎧 හඬ පරීක්ෂා කරන button එක තියෙනවා (phone එකේ හඬ බලන්න)', tools.soundTest);
+    ok('🎯 අතින් focus slider එක තියෙනවා (auto-focus නොවුනොත්)', tools.focusSlider);
+    ok('🔍 zoom slider එක තියෙනවා', tools.zoomSlider);
+    ok('📷 Photo button එක තියෙනවා', tools.captureBtn);
+
+    // 🎧 හඬ පරීක්ෂාව ඔබලා speak() එකට යන වාක්‍ය දෙක අල්ලගන්නවා
+    const soundTest = await evaluate(cdp, sessionId, `(async () => {
+      const sb = document.getElementById('soundBtn');
+      if (sb && /නිශ්ශබ්දයි/.test(sb.textContent)) sb.click();
+      const said = [];
+      const orig = window.speechSynthesis ? window.speechSynthesis.speak : null;
+      try { if (window.speechSynthesis) window.speechSynthesis.speak = u => said.push(String(u && u.text || '')); } catch (e) {}
+      document.getElementById('soundTestBtn').click();
+      await new Promise(r => setTimeout(r, 5200));
+      try { if (orig) window.speechSynthesis.speak = orig; } catch (e) {}
+      return { said: said, ctxState: (window.AudioContext ? 'ok' : 'n/a') };
+    })()`, true, true);
+    ok('🎧 හඬ පරීක්ෂාවෙන් දිනුම් වාක්‍යය කියනවා (මුදල වචන වලින්)',
+      soundTest.said.some(x => /forty rupees/.test(x)), JSON.stringify(soundTest.said));
+    ok('🎧 හඬ පරීක්ෂාවෙන් පරාද වාක්‍යයත් කියනවා',
+      soundTest.said.some(x => /lost this time/.test(x)), JSON.stringify(soundTest.said));
 
     /* ---------- 5. 5-තත්පර overlay ---------- */
     section('5. ⏱️ 5-තත්පර ප්‍රතිඵල overlay');

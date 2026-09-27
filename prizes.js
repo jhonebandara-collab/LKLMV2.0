@@ -382,12 +382,20 @@ function adaSampathaSubTiers() {
       { tier: '1ST', label: '2 Numbers Correct', prizeRs: 1000, when: s => s.setCount === 2 && s.total === 2 } ],
     1: [ // 3 numbers — full SET match only
       { tier: '1ST', label: '3 Numbers Correct', prizeRs: 4000, when: s => s.setCount === 3 && s.total === 3 } ],
-    2: [ // 4 numbers + letter
+    2: [ // 🎟️ අකුර + තනි ඉලක්කම් 4ක්
+      // ⚠️ FIX (2026-09-27): ඔබ දුන්නු ලේඛනයේ [1.7] අනුව මේ game එකට
+      // **3 වන (ඕනෑම ඉලක්කම් 3ක්) = රු.4,000** සහ **4 වන (ඕනෑම ඉලක්කම් 2ක්) = රු.1,000**
+      // tiers දෙකත් තියෙනවා. කලින් ඒවා දෙක නැති නිසා ඇත්තට දිනපු ටිකට් එකක්
+      // "දිනුමක් නෑ" කියලා පෙන්නුවා.
       { tier: '2ND', label: '4 Numbers and Letter Correct', prizeRs: 250000,
         when: s => s.setCount === 4 && s.letter },
       { tier: '1ST', label: '4 Numbers Correct', prizeRs: 50000,
         when: s => s.setCount === 4 },
-      { tier: '3RD', label: 'Letter Correct', prizeRs: 80,
+      { tier: '3RD', label: 'Any 3 Numbers Correct', prizeRs: 4000,
+        when: s => s.setCount === 3 },
+      { tier: '4TH', label: 'Any 2 Numbers Correct', prizeRs: 1000,
+        when: s => s.setCount === 2 },
+      { tier: '5TH', label: 'Letter Correct', prizeRs: 80,
         when: s => s.setCount === 0 && s.letter } ],
   };
 }

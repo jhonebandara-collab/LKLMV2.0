@@ -826,6 +826,20 @@
     const official = (d.draw && d.draw.numbers) || [];
     const mine = (d.ticket && d.ticket.numbers) || [];
 
+    /* 🎟️ සැසඳීමේ ටේබලය — එකම module එකෙන් (ticket-verify.js) නිසා app එකේ
+       ප්රතිඵල කාඩ් එකේ පෙන්නන දේම මෙතනත් පේනවා. */
+    let cmpHtml = '';
+    try {
+      if (window.LKMTicketVerify && d.lottery) {
+        const parsed = (window.LKMExtras && window.LKMExtras.lastParse) ? window.LKMExtras.lastParse() : null;
+        const lotX = { slug: d.lottery.slug,
+          hasLetter: !!(d.lottery.hasLetter), hasZodiac: !!(d.lottery.hasZodiac),
+          hasSuperNumber: !!(d.lottery.hasSuperNumber) };
+        const v = window.LKMTicketVerify.verify(lotX, d.draw || {}, d.ticket || {}, parsed, curLang());
+        cmpHtml = window.LKMTicketVerify.html(v);
+      }
+    } catch (e) { cmpHtml = ''; }
+
     const t = document.createElement('div');
     t.className = 'lkmToast ' + kind;
     t.id = 'lkmToast';
@@ -840,6 +854,7 @@
           (d.draw ? '<span>· Draw ' + esc(d.draw.drawNo) + '</span><span>· ' + esc(d.draw.date) + '</span>' : '') +
         '</div>' +
         (official.length ? '<div class="nums">' + numsRow(official, mine) + '</div>' : '') +
+        cmpHtml +
         (d.offline ? '<div class="row" style="margin-top:9px">' + T('res.offline') + '</div>' : '') +
         (d.note ? '<div class="row" style="margin-top:8px">📌 ' + esc(d.note) + '</div>' : '') +
         '<div class="row" style="margin-top:9px">📷 ' + T('res.nextHint') + '</div>' +
@@ -1045,6 +1060,12 @@
     /* UI */
     renderBar,
     refreshInfoBar,
+
+    /** 🔳 අන්තිම QR parse එක (overlay එකේ සැසඳීමේ ටේබලයට) */
+    lastParse: () => {
+      try { return (window.__lkm && window.__lkm.lastParse) ? window.__lkm.lastParse() : null; }
+      catch (e) { return null; }
+    },
 
     /* test සඳහා (browser console එකෙන්) */
     _debug: {

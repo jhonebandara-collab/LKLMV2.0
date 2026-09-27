@@ -144,8 +144,14 @@ async function main() {
           if (st) st.textContent = '3840×2160 · focus: continuous';
         }
         if ('${MODE}' === 'result') {
-          window.__lkm.onQrDecoded('MAHAJANA SAMPATHA DRAW:6321 DATE:2026-09-25 LETTER:S 9 8 6 1 5 9', 'jsqr', 120);
-          await new Promise(r => setTimeout(r, 1500));
+          // ඇත්ත draw එකක් ගෙන ඒ අංක වලින්ම QR payload එකක් හදලා check කරනවා
+          const latest = await fetch('/api/latest').then(r => r.json());
+          const row = (latest.results || []).find(x => x.slug === 'mahajana-sampatha') || (latest.results || [])[0];
+          const parts = ['MAHAJANA SAMPATHA', 'DRAW:' + row.drawNo, 'DATE:' + row.date];
+          if (row.letter) parts.push('LETTER:' + row.letter);
+          parts.push((row.numbers || []).join(' '));
+          await window.__lkm.onQrDecoded(parts.join(' | '), 'jsqr', 120);
+          await new Promise(r => setTimeout(r, 2200));
         }
         window.scrollTo(0, 0);
       })()`,

@@ -313,6 +313,50 @@ console.log('\n10. 🔢 අංක 4ම ලොතරැයි 16ටම (regressio
   }
 }
 
+/* ----------------------------------------------------------------- 11 */
+console.log('\n11. 🅰️ අකුරු + special letter');
+{
+  const r = P.parse('KAPRUKA DRAW:2471 DATE:2026-09-25 LETTER:K SPECIAL LETTER:X SPECIAL NO:37 12 45 67 89', lotObj('kapruka'));
+  ok('අකුර (K) + special letter (X) + special no (37) — තුනම කියවුනා',
+    r.letter === 'K' && r.specialLetter === 'X' && String(r.superNumber) === '37',
+    'letter=' + r.letter + ' specialLetter=' + r.specialLetter + ' sn=' + r.superNumber);
+  ok('හැම තනි අකුරක්ම letters[] එකේ තියෙනවා',
+    Array.isArray(r.letters) && r.letters.indexOf('K') >= 0,
+    JSON.stringify(r.letters));
+
+  const r2 = P.parse('MEGA POWER 2669 2026-09-25 L Z SN 14 22 45 67 89', lotObj('mega-power'));
+  ok('Mega Power — අකුර Z, අගුල්ලන අකුරු ලැයිස්තුවේ',
+    r2.letter === 'Z' && r2.letters.length >= 2,
+    'letter=' + r2.letter + ' letters=' + JSON.stringify(r2.letters));
+
+  const r3 = P.parse('GOVISETHA DRAW 4563 DATE 2026-09-25 LETTER T 12 45 67 89', lotObj('govisetha'));
+  ok('අකුරු එකක් විතරයි නම් specialLetter null',
+    r3.letter === 'T' && r3.specialLetter === null,
+    'letter=' + r3.letter + ' special=' + r3.specialLetter);
+}
+
+/* ----------------------------------------------------------------- 12 */
+console.log('\n12. 🔁 ඉලක්කම් 1/2 ආකාරය වෙනස් වුනත් හරියටම ගැලපෙනවා');
+{
+  // ලොතරැයිය 2 බැගින් ඕන (ගොවිසෙත 4×2) ඒත් QR එකේ ඉලක්කම් 1 බැගින්
+  const r = P.parse('GOVISETHA DRAW 4563 DATE 2026-09-25 LETTER T 1 2 4 5 6 7 8 9', lotObj('govisetha'));
+  ok('1 බැගින් තිබ්බත් 2 බැගින් හදලා ගත්තා ("12 45 67 89")',
+    JSON.stringify(r.pairs) === JSON.stringify(['12', '45', '67', '89']),
+    JSON.stringify(r.pairs) + ' order=' + r.order);
+
+  // ලොතරැයිය 1 බැගින් ඕන (මහජන 6×1) ඒත් QR එකේ 2 බැගින්
+  const r2 = P.parse('MAHAJANA SAMPATHA DRAW 6321 DATE 2026-09-25 LETTER S 98 61 59 7712345', lotObj('mahajana-sampatha'));
+  ok('2 බැගින් තිබ්බත් 1 බැගින් 6ක් හදලා ගත්තා',
+    JSON.stringify(r2.pairs) === JSON.stringify(['9', '8', '6', '1', '5', '9']),
+    JSON.stringify(r2.pairs) + ' order=' + r2.order);
+
+  // ගාන ගැලපෙන්නේ නැත්නම් බලෙන් හදන්නේ නෑ (වැරදි ප්‍රතිඵලයක් නොදෙන්න)
+  const r3 = P.parse('GOVISETHA DRAW 4563 DATE 2026-09-25 LETTER T 1 2 4', lotObj('govisetha'));
+  ok('ඉලක්කම් මදි නම් බලෙන් හදන්නේ නෑ (confidence පහත)',
+    r3.pairs.length < 4 && r3.confidence !== 'high',
+    JSON.stringify(r3.pairs) + ' conf=' + r3.confidence);
+}
+
 console.log('\n══════════════════════════════════════════════════════');
 console.log('  ✓ Pass: ' + pass + '   ✗ Fail: ' + fail);
 if (failures.length) {
