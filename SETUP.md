@@ -415,3 +415,23 @@ DATA_STALE_HOURS=30        # දත්ත "පරණ" කියලා සලක�
 npm run test:offline     # offline endpoints + engine parity
 npm run test:e2e         # ඇත්ත browser එකකින් UI (CHROME_PATH=... නම් Chrome එක දෙන්න)
 ```
+
+## 10. 🔳 v1.3.0 — QR parser + හැම browser එකේම scan + UI
+
+> සම්පූර්ණ විස්තරය **`README-SI.md` → "🆕 v1.3.0"** කොටසේ.
+
+**අලුත් files:**
+
+| File | මොකද කරන්නේ |
+|---|---|
+| `public/qr-parse.js` | QR payload parser එක (ලොතරැයි format එකට අනුව · දිනය/ලග්නය/SN හඳුනාගැනීම). `window.LKMQrParse` හෝ `require()` — දෙකේම වැඩ කරනවා |
+| `scripts/test-qr-parse.js` | `npm run test:qr` — 52 tests (ලොතරැයි 16ම + දිනය + ලග්නය + Special) |
+| `scripts/screenshot.js` | `npm run shots` — UI එකේ screenshot (headless Chrome) |
+
+**වැදගත්:**
+- `qr-parse.js` එක **`qr-decode.js` එකට කලින්** load වෙන්න ඕන (index.html එකේ එහෙම තියෙනවා).
+- Parsed දත්ත **වැරදි නම් හෝ අඩු නම් app එක ප්රතිඵලයක් පෙන්නන්නේ නෑ** — confirm card එකක්
+  එවනවා (තහවුරු / අතින් නිවැරදි / AI Scan). ඒක **feature එකක්** — වැරදි ප්රතිඵලයක්
+  පෙන්නනවට වඩා හොඳයි.
+- `scrape-runner.js` එකේ දත්ත "පරණද" බැලීම දැන් `mtime` + `scrapedAt` දෙකෙන්ම
+  (deploy කරද්දී වැඩ කරන්න).

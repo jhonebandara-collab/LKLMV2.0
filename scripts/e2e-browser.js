@@ -373,6 +373,142 @@ async function main() {
     ok('ඇත්ත lottery QR එක classify නොවෙනවා (normal flow)', qr.good === null);
     ok('future පණිවිඩයේ draw අංකය තියෙනවා', !!(qr.futureHtml && qr.futureHtml.indexOf(String(qr.futureNo)) >= 0 || true));
 
+    /* ---------- 4b. 🔳 parser integration (app එකේම parseQrPayload එකෙන්) ---------- */
+    section('4b. 🔳 QR parser — app එකේම parseQrPayload (ලොතරැයි format අනුව)');
+    const parsed = await evaluate(cdp, sessionId, `(() => {
+      const P = window.__lkm.parseQrPayload;
+      const cases = [
+        ['MAHAJANA SAMPATHA DRAW:6321 DATE:2026-09-25 LETTER:S SER:7712345 9 8 6 1 5 9', 'mahajana-sampatha'],
+        ['LAGNA WASANA DRAW:5007 DATE:2026-09-25 LAGNA:GEMINI 12 45 67 89 SER:1122334', 'lagna-wasana'],
+        ['KAPRUKA DRAW:2471 DATE:2026-09-25 LETTER:K SPECIAL:37 12 45 67 89', 'kapruka'],
+        ['ADA KOTIPATHI 3121 20260925 I 12 45 67 89 8842193', 'ada-kotipathi'],
+      ];
+      return cases.map(([raw, slug]) => {
+        const p = P(raw);
+        return { slug, got: p.slug, date: p.date, letter: p.letter, zodiac: p.zodiac,
+                 sn: p.superNumber, pairs: p.pairs, conf: p.confidence, missing: p.missing };
+      });
+    })()`);
+
+    const mah = parsed[0], lag = parsed[1], kap = parsed[2], ada = parsed[3];
+    ok('Mahajana (1-ඉලක්කම් 6ක්) හරියටම කියවුනා',
+      JSON.stringify(mah.pairs) === JSON.stringify(['9', '8', '6', '1', '5', '9']) &&
+      mah.letter === 'S' && mah.date === '2026-09-25' && mah.conf === 'high',
+      JSON.stringify(mah.pairs) + ' · letter=' + mah.letter);
+    ok('ලග්න වාසනා — ලග්නය (GEMINI) කියවුනා',
+      lag.zodiac === 'GEMINI' && JSON.stringify(lag.pairs) === JSON.stringify(['12', '45', '67', '89']),
+      'zodiac=' + lag.zodiac);
+    ok('කප්රුක — special number (37) කියවුනා',
+      String(kap.sn) === '37' && kap.letter === 'K', 'sn=' + kap.sn + ' letter=' + kap.letter);
+    ok('දිනයේ ඉලක්කම් ටිකට් අංක විදිහට ගත්තේ නෑ (20260925)',
+      JSON.stringify(ada.pairs) === JSON.stringify(['12', '45', '67', '89']) &&
+      ada.date === '2026-09-25' && ada.letter === 'I',
+      JSON.stringify(ada.pairs));
+
+    /* ---------- 4c. 🛑 දත්ත අඩු නම් වැරදි ප්‍රතිඵලයක් පෙන්නන්නේ නෑ ---------- */
+    const partial = await evaluate(cdp, sessionId, `(async () => {
+      document.querySelector('#tabs button[data-tab="scan"]').click();
+      // ලග්නය කියවාගන්න බැරි උනා → confirm card එකක් එන්න ඕන (ප්‍රතිඵලයක් නොවේ)
+      await window.__lkm.onQrDecoded('LAGNA WASANA DRAW:5007 DATE:2026-09-25 12 45 67 89', 'jsqr', 90);
+      await new Promise(r => setTimeout(r, 500));
+      const host = document.getElementById('scanMatch');
+      return {
+        text: host.innerText.slice(0, 300),
+        hasConfirm: /තහවුරු|කියවාගන්න බැරි/.test(host.innerText),
+        hasResult: !!host.querySelector('.result, .verdict'),
+        buttons: Array.from(host.querySelectorAll('button')).map(b => b.textContent.trim()),
+      };
+    })()`, true);
+    ok('දත්ත අඩු QR එකකට confirm card එකක් එනවා', partial.hasConfirm, partial.text.slice(0, 60));
+    ok('වැරදි ප්‍රතිඵලයක් පෙන්නන්නේ නෑ', !partial.hasResult);
+    ok('අතින් නිවැරදි කිරීමේ button එක තියෙනවා',
+      partial.buttons.some(b => /අතින් නිවැරදි/.test(b)), partial.buttons.join(' | '));
+
+    /* ---------- 4d. 🎨 layout — buttons camera එකට යටින් (thumb-reachable) ---------- */
+    const layout = await evaluate(cdp, sessionId, `(() => {
+      const camWrap = document.getElementById('camWrap');
+      const actions = document.getElementById('scanActions');
+      const ctl = document.getElementById('scanCamCtl');
+      const other = document.getElementById('otherMethods');
+      const purpose = document.getElementById('scanPurposeNote');
+      const native = document.getElementById('nativeCamBtn');
+      const before = (a, b) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+      return {
+        hasActions: !!actions,
+        actionsAfterCam: !!(camWrap && actions && before(camWrap, actions)),
+        ctlInActions: !!(ctl && actions && actions.contains(ctl)),
+        ctlHiddenInitially: !!(ctl && getComputedStyle(ctl).display === 'none'),
+        otherCollapsed: !!(other && !other.open),
+        nativeInsideOther: !!(other && native && other.contains(native)),
+        purposeCompact: !!(purpose && purpose.classList.contains('scanhint')),
+        sticky: !!(actions && getComputedStyle(actions).position === 'sticky'),
+        diagLine: !!document.getElementById('qrDiagLine'),
+        torchBtn: !!document.getElementById('torchBtn'),
+        scanNowBtn: !!document.getElementById('scanNowBtn'),
+      };
+    })()`);
+    ok('පහළ action bar එක තියෙනවා', layout.hasActions);
+    ok('action bar එක camera එකට **යටින්** (thumb-reachable)', layout.actionsAfterCam);
+    ok('camera පාලන (zoom/focus/දැන්ම) action bar එකේ ඇතුළේ', layout.ctlInActions);
+    ok('කැමරාව වැහිලා ඉද්දී පාලන හංගලා', layout.ctlHiddenInitially);
+    ok('වෙනත් ක්රම (phone cam/gallery) collapsed', layout.otherCollapsed && layout.nativeInsideOther);
+    ok('කෙටි hint එකක් විතරයි (දිග පැහැදිලි කිරීම් අයින්)', layout.purposeCompact);
+    ok('action bar එක sticky (මාපටැඟිල්ලට ළඟට එනවා)', layout.sticky);
+    ok('🔬 diagnostics + 🔆 torch + 🔍 දැන්ම buttons',
+      layout.diagLine && layout.torchBtn && layout.scanNowBtn);
+
+    /* ---------- 4e. 📐 මිනුම් — button ප්‍රමාණය + කැමරාව open වුනාම layout ---------- */
+    const metrics = await evaluate(cdp, sessionId, `(async () => {
+      const r = el => { const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height, bottom: b.bottom }; };
+      const camWrap = document.getElementById('camWrap');
+      const actions = document.getElementById('scanActions');
+      const start = document.getElementById('camStartBtn');
+      // කැමරාව open වුනාට පස්සේ තත්ත්වය simulate කරනවා (device එකක් නැති නිසා)
+      const wrapDisplay = camWrap.style.display;
+      camWrap.style.display = 'block';
+      camWrap.scrollIntoView({ block: 'start' });
+      await new Promise(res => setTimeout(res, 250));
+      const ctl = document.getElementById('scanCamCtl');
+      ctl.style.display = 'flex';
+      const torch = document.getElementById('torchBtn');
+      torch.style.display = '';
+      const focus = document.getElementById('refocusBtn');
+      focus.style.display = '';
+      const now = document.getElementById('scanNowBtn');
+
+      const out = {
+        start: r(start), actions: r(actions), camWrap: r(camWrap),
+        torch: r(torch), focus: r(focus), now: r(now),
+        // ✅ නිවැරදි තත්ත්වය: (අ) කැමරාවට යටින් හෝ (ආ) තිරයේ පහළම sticky වෙලා
+        // (sticky bar එකක් දිග content එකකදී තිරයේ පහළට stick වෙනවා — ඒක තමයි ඕන දේ)
+        actionsBelowCam: (r(actions).y >= r(camWrap).bottom - 2) ||
+                         (r(actions).bottom >= window.innerHeight - 2),
+        barH: Math.round(r(actions).h),
+        vh: window.innerHeight,
+        ctlFlex: getComputedStyle(ctl).display === 'flex',
+        overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        stickyBottom: getComputedStyle(actions).bottom,
+      };
+      // ආපහු කලින් තත්ත්වයට
+      camWrap.style.display = wrapDisplay;
+      ctl.style.display = 'none';
+      torch.style.display = 'none';
+      focus.style.display = 'none';
+      return out;
+    })()`, true);
+    ok('ප්‍රධාන button එක ≥48px උස (ඇඟිල්ලට පහසුයි)', metrics.start.h >= 48,
+      Math.round(metrics.start.w) + '×' + Math.round(metrics.start.h));
+    ok('camera open වුනාම පාලන පේළිය පේනවා', metrics.ctlFlex);
+    ok('🔆/🎯/🔍 buttons ≥40px උස', metrics.torch.h >= 40 && metrics.focus.h >= 40 && metrics.now.h >= 40,
+      [metrics.torch.h, metrics.focus.h, metrics.now.h].map(h => Math.round(h)).join('/'));
+    ok('action bar එක camera preview එකට යටින්ම (හෝ තිරයේ පහළම sticky)',
+      metrics.actionsBelowCam,
+      'cam.bottom=' + Math.round(metrics.camWrap.bottom) + ' bar.top=' + Math.round(metrics.actions.y) +
+      ' bar.bottom=' + Math.round(metrics.actions.bottom) + ' vh=' + metrics.vh);
+    ok('action bar එක කෙටියි (තිරයෙන් වැඩි කොටසක් ගන්නේ නෑ)',
+      metrics.barH <= 200, 'height=' + metrics.barH + 'px');
+    ok('තිරස් scroll නෑ (mobile overflow නෑ)', metrics.overflowX <= 1, 'overflowX=' + metrics.overflowX);
+
     /* ---------- 5. 5-තත්පර overlay ---------- */
     section('5. ⏱️ 5-තත්පර ප්‍රතිඵල overlay');
     const overlay = await evaluate(cdp, sessionId, `(() => {

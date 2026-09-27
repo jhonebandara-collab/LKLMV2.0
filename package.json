@@ -1,6 +1,6 @@
 {
   "name": "lk-lottery-master",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
   "description": "Sri Lanka NLB + DLB lottery result checker with real prize tables, AI ticket scanning and subscriptions",
   "main": "server.js",
@@ -15,7 +15,10 @@
     "test": "node test.js",
     "test:gemini": "node test-gemini.js",
     "test:offline": "node scripts/smoke-offline.js",
-    "health": "node -e \"fetch('http://localhost:'+(process.env.PORT||3000)+'/api/health').then(r=>r.json()).then(j=>console.log(JSON.stringify(j,null,2))).catch(e=>console.error('Server එක run වෙන්නේ නෑ:',e.message))\""
+    "test:qr": "node scripts/test-qr-parse.js",
+    "health": "node -e \"fetch('http://localhost:'+(process.env.PORT||3000)+'/api/health').then(r=>r.json()).then(j=>console.log(JSON.stringify(j,null,2))).catch(e=>console.error('Server එක run වෙන්නේ නෑ:',e.message))\"",
+    "test:e2e": "node scripts/e2e-browser.js",
+    "shots": "node scripts/screenshot.js open"
   },
   "keywords": [
     "lottery",

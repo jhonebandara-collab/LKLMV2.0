@@ -134,6 +134,7 @@
     'res.keepOn': { si: '⏸️ අයින් කරන්න', en: '⏸️ Dismiss', ta: '⏸️ நீக்கு' },
 
     'torch.on': { si: '🔆 කැමරා එළි', en: '🔆 Torch', ta: '🔆 டார்ச்' },
+    'torch.short': { si: 'එළි', en: 'Torch', ta: 'டார்ச்' },
 
     'info.quick': { si: '📄 තොරතුරු සහ නීතිමය', en: '📄 Info & legal', ta: '📄 தகவல் & சட்டம்' },
   };
@@ -716,52 +717,61 @@
   let torchTrack = null;
   let torchOn = false;
 
-  async function setupTorch() {
-    const adv = $('#advBox .advbody');
+  /**
+   * 🔆 Torch button එක දැන් **camera පාලන පේළියේ** (`#scanCamCtl` — camera එකට
+   * යටින්, මාපටැඟිල්ලට ළඟින්) තියෙනවා. Device/camera එකේ torch තියෙනවා නම්
+   * විතරයි පෙන්නන්නේ — නැත්නම් හංගලා තියෙනවා (නිකම් වැඩ නොකරන button
+   * පෙන්නන එක user ට කරදරයක්).
+   */
+  function setupTorch() {
+    const btn = $('#torchBtn');
     const video = $('#cam');
-    if (!adv || !video) return;
-    if ($('#lkmTorchBtn')) {
-      // camera එක restart වුනා නම් button එක අලුත් track එකට bind කරන්න ඕන
-      const t = video.srcObject && video.srcObject.getVideoTracks
-        ? video.srcObject.getVideoTracks()[0] : null;
-      if (t && t === torchTrack) return;
-      $('#lkmTorchBtn').remove();
-      torchOn = false;
-    }
+    const wrap = $('#camWrap');
+    if (!btn || !video) return;
+
+    const camOpen = wrap && wrap.style.display !== 'none';
+    if (!camOpen) { btn.style.display = 'none'; return; }
+
     const track = video.srcObject && video.srcObject.getVideoTracks
       ? video.srcObject.getVideoTracks()[0] : null;
-    if (!track || typeof track.getCapabilities !== 'function') return;
+    if (!track || typeof track.getCapabilities !== 'function') { btn.style.display = 'none'; return; }
 
     let caps = null;
-    try { caps = track.getCapabilities(); } catch (e) { return; }
-    if (!caps || !caps.torch) return;      // මේ device/camera එකේ torch නෑ
+    try { caps = track.getCapabilities(); } catch (e) { btn.style.display = 'none'; return; }
+    if (!caps || !caps.torch) { btn.style.display = 'none'; return; }
 
-    torchTrack = track;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn';
-    btn.id = 'lkmTorchBtn';
-    btn.style.marginBottom = '10px';
-    btn.textContent = T('torch.on') + ': OFF';
-    adv.insertBefore(btn, adv.firstChild);
+    if (torchTrack !== track) {          // camera එක restart වුනා නම්
+      torchTrack = track;
+      torchOn = false;
+      btn.classList.remove('on');
+      const gl = btn.querySelector('.gl');
+      if (gl) gl.textContent = '🔆';
+    }
+    btn.style.display = '';
+  }
 
+  /** torch click — එක පාරක් විතරයි bind කරන්නේ */
+  function wireTorch() {
+    const btn = $('#torchBtn');
+    if (!btn || btn.dataset.lkmWired) return;
+    btn.dataset.lkmWired = '1';
     btn.addEventListener('click', async () => {
+      if (!torchTrack) return;
       torchOn = !torchOn;
       try {
         await torchTrack.applyConstraints({ advanced: [{ torch: torchOn }] });
       } catch (e) {
         torchOn = false;
+        if (typeof msg === 'function' && $('#scanStatus')) {
+          msg($('#scanStatus'), 'warn', '⚠️ මේ device/camera එකෙන් torch පාලනය කරන්න බැරි උනා.');
+        }
       }
-      btn.textContent = T('torch.on') + ': ' + (torchOn ? 'ON' : 'OFF');
-      btn.classList.toggle('sec', torchOn);
+      btn.classList.toggle('on', torchOn);
     });
   }
 
   // Camera එක open වුනාම / restart වුනාම torch button එක සූදානම් කරනවා
-  setInterval(() => {
-    const wrap = $('#camWrap');
-    if (wrap && wrap.style.display !== 'none') setupTorch();
-  }, 1200);
+  setInterval(() => { setupTorch(); wireTorch(); }, 1000);
 
   /* ====================================================================== */
   /* 12. 📳 Vibration · ⏱️ 5-තත්පර ප්‍රතිඵල overlay                              */
@@ -923,11 +933,16 @@
     }
 
     // ---- (ආ) ලොතරැයි QR එකක්ම නොවන payload එකක් ----
+    // 🔳 ඇත්ත විනිශ්චය `qr-parse.js` (LKMQrParse.looksLikeLottery) එකෙන් —
+    // ඒකේ test 52ක් තියෙන නිසා "WiFi QR"/"YouTube link" වගේ ඒවා හරියටම අහුවෙනවා.
     const structured = p.format === 'json' || p.format === 'url' || p.format === 'kv';
     const hasMarker = LOTTERY_MARKER.test(rawStr);
     const hasNumbers = Array.isArray(p.pairs) && p.pairs.length >= 2;
+    const looks = (window.LKMQrParse && typeof window.LKMQrParse.looksLikeLottery === 'function')
+      ? window.LKMQrParse.looksLikeLottery(rawStr, p)
+      : (hasMarker || (hasNumbers && !!p.drawNo) || (structured && hasNumbers));
 
-    if (!hasMarker && !structured && !(hasNumbers && lot && !p.slug && p.drawNo)) {
+    if (!looks) {
       return {
         handled: true,
         kind: 'not-lottery',
