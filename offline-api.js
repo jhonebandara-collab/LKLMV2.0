@@ -181,11 +181,84 @@ function buildBundle(months) {
 /* Routes                                                          */
 /* --------------------------------------------------------------- */
 
+/**
+ * 🎫 **ටිකට් අනන්‍යතාව → ලොතරැයිය හඳුනාගැනීම** (`GET /api/identify`)
+ *
+ * NLB/DLB ටිකට් වල QR/බාර්කෝඩ් එකේ තියෙන්නේ board + draw අංකය + serial විතරයි
+ * (ඔයා තෝරපු අංක නෑ). ඒත් **draw අංකය දැනගත්තම ලොතරැයිය හඳුනාගන්න පුළුවන්** —
+ * අපේ database එකේ හැම ලොතරැයියකම පසුගිය draws තියෙන නිසා:
+ *   · හරියටම ඒ draw අංකය තියෙන ලොතරැයිය → **exact** (විශ්වාසය 100%)
+ *   · නැත්නම් ලඟම අංකය තියෙන ලොතරැයි → **near** (විශ්වාසය අඩුයි)
+ *
+ * එකම ලොතරැයියේම දිනුම් අංක/දිනය/අකුරත් එවනවා නිසා app එකට **ඒ draw එකටම**
+ * ප්‍රතිඵලය ගණනය කරන්න පුළුවන් (අලුත්ම draw එකට නෙවෙයි).
+ */
+function identifyFromTicket(board, drawNo, code) {
+  const data = readData().raw || { lotteries: [] };   // ⚠️ readData() → {raw, hash}
+  const want = String(drawNo == null ? '' : drawNo).replace(/^0+(?=\d)/, '');
+  if (!want || !/^\d+$/.test(want)) return { ok: false, error: 'draw අංකයක් ඕන' };
+  const b = String(board || '').toUpperCase();
+  const wantCode = String(code || '').replace(/\D/g, '');
+
+  const exact = [];
+  const near = [];
+  for (const lot of (data.lotteries || [])) {
+    if (b && lot.provider && String(lot.provider).toUpperCase() !== b) continue;
+    const meta = describeLottery(lot) || {};
+    let bestDistance = null;
+    let bestDraw = null;
+    for (const d of (lot.draws || [])) {
+      const dn = String(d.drawNo || '').replace(/^0+(?=\d)/, '');
+      if (!dn) continue;
+      const dist = Math.abs(Number(dn) - Number(want));
+      if (bestDistance === null || dist < bestDistance) { bestDistance = dist; bestDraw = d; }
+      if (dn === want) {
+        exact.push({
+          slug: lot.slug, provider: lot.provider, name: lot.name, nameSi: lot.nameSi,
+          drawNo: d.drawNo, date: d.date, letter: d.letter || null, zodiac: d.zodiac || null,
+          superNumber: d.superNumber || null, numbers: d.numbers || [],
+          hasLetter: !!meta.hasLetter, hasZodiac: !!meta.hasZodiac,
+          hasSuperNumber: !!meta.hasSuperNumber, numberCount: meta.numberCount,
+          digitWidth: meta.digitWidth, prizeKind: meta.prizeKind || null,
+          digitHint: wantCode ? ('ticket code ' + wantCode) : null,
+        });
+        break;
+      }
+    }
+    if (bestDraw && bestDistance !== null && bestDistance <= 25) {
+      near.push({
+        slug: lot.slug, provider: lot.provider, name: lot.name, nameSi: lot.nameSi,
+        closeDraw: bestDraw.drawNo, closeDate: bestDraw.date, distance: bestDistance,
+      });
+    }
+  }
+  exact.sort((a, b2) => String(b2.date).localeCompare(String(a.date)));
+  near.sort((a, b2) => a.distance - b2.distance);
+  return {
+    ok: true, board: b || null, drawNo: want, code: wantCode || null,
+    found: exact.length > 0,
+    exact: exact.slice(0, 6),
+    near: near.slice(0, 5),
+  };
+}
+
 function registerOfflineRoutes(app) {
   /**
    * දත්ත තියෙනවද? පරණයිද? — app එකේ "gate" එකට සහ status badge එකට.
    * (සැහැල්ලු endpoint එකක් — bundle එක ගන්නේ නෑ.)
    */
+  /* ── GET /api/identify?board=NLB&draw=1605[&code=085] ── */
+  app.get('/api/identify', (req, res) => {
+    try {
+      const out = identifyFromTicket(req.query.board, req.query.draw, req.query.code);
+      if (!out.ok) return res.status(400).json(out);
+      res.set('Cache-Control', 'public, max-age=300');
+      res.json(out);
+    } catch (e) {
+      res.status(500).json({ ok: false, error: String(e && e.message || e) });
+    }
+  });
+
   app.get('/api/data-status', (req, res) => {
     const { raw, hash } = readData();
     const lotteries = (raw.lotteries || []).filter(l => l && l.slug);
@@ -249,4 +322,11 @@ function registerOfflineRoutes(app) {
   });
 }
 
-module.exports = { registerOfflineRoutes, buildBundle, readData, compactDraw };
+module.exports = {
+  registerOfflineRoutes,
+  buildBundle,
+  readData,
+  compactDraw,
+  /** 🎫 ටිකට් අනන්‍යතාව (board + draw) → ලොතරැයිය හඳුනාගැනීම */
+  identifyFromTicket,
+};

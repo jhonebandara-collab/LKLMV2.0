@@ -1,6 +1,6 @@
 {
   "name": "lk-lottery-master",
-  "version": "1.5.0",
+  "version": "1.7.0",
   "private": true,
   "description": "Sri Lanka NLB + DLB lottery result checker with real prize tables, AI ticket scanning and subscriptions",
   "main": "server.js",

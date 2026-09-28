@@ -562,6 +562,8 @@ button:disabled,.iconbtn:disabled{opacity:.45;cursor:not-allowed}
 .cmp-row.bad .cmp-t{color:#ff9d9d}
 .cmp-row.bad{background:rgba(248,113,113,.07);border-radius:8px}
 .cmp-row.unknown .cmp-t{color:#ffd479}
+.cmp-row.info .cmp-t{color:#9fb3c8}
+.cmp-row.info{opacity:.9}
 .cmp-none{color:var(--muted);font-weight:400;font-size:11.5px}
 .cmp-nums{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
 .cmp-chip{display:inline-block;min-width:34px;text-align:center;padding:5px 9px;border-radius:9px;
@@ -2985,6 +2987,64 @@ function histQuery() {
   return q;
 }
 
+/* 🧾 Account tab එකේ ඉතිහාසය — server එකේ **user ගේ හැම check එකක්ම** */
+const ACCT = { offset: 0, limit: 25, items: [], total: 0, hasMore: false };
+
+async function loadAccountHistory(reset) {
+  const host = $('#acctHistList');
+  const sum = $('#acctHistSum');
+  if (!host) return;
+  if (reset) { ACCT.offset = 0; ACCT.items = []; }
+  host.innerHTML = '<div class="empty">⏳ Load වෙමින්...</div>';
+
+  const q = new URLSearchParams();
+  const slug = ($('#acctLottery') || {}).value || '';
+  const from = ($('#acctFrom') || {}).value || '';
+  const to = ($('#acctTo') || {}).value || '';
+  const winsOnly = !!($('#acctWinsOnly') || {}).checked;
+  if (slug) q.set('slug', slug);
+  if (from) q.set('from', from);
+  if (to) q.set('to', to);
+  if (winsOnly) q.set('winsOnly', 'true');
+  q.set('limit', String(ACCT.limit));
+  q.set('offset', String(ACCT.offset));
+
+  try {
+    const d = await api('/api/history?' + q.toString());
+    ACCT.items = reset ? d.items : ACCT.items.concat(d.items);
+    ACCT.total = d.total;
+    ACCT.hasMore = d.hasMore;
+
+    const won = ACCT.items.filter(x => x.won);
+    const totalRs = won.reduce((a, x) => a + (Number(x.prizeAmountRs) || 0), 0);
+    let sumRs = '';
+    try { sumRs = totalRs.toLocaleString('en-LK'); } catch (e) { sumRs = String(totalRs); }
+    if (sum) {
+      sum.innerHTML = '';
+      const s1 = el('div', 'kv', '<span>මුළු check ගණන</span><span><strong>' + ACCT.total + '</strong></span>');
+      const s2 = el('div', 'kv', '<span>දිනුම් (මේ ලිස්ට් එකේ)</span><span><strong>' + won.length + '</strong></span>');
+      const s3 = el('div', 'kv', '<span>මුළු දිනුම් මුදල (මේ ලිස්ට් එකේ)</span><span><strong>Rs. ' + esc(sumRs) + '</strong></span>');
+      sum.appendChild(s1); sum.appendChild(s2); sum.appendChild(s3);
+    }
+
+    host.innerHTML = '';
+    if (!ACCT.items.length) {
+      host.innerHTML = '<div class="empty">මේ filter එකට මුකුත් හම්බුනේ නෑ.<br>' +
+        '<small>🔳 Scan කරලා හෝ ✍️ අතින් check කරලා ටිකක් එකතු කරන්න.</small></div>';
+    } else {
+      for (const it of ACCT.items) {
+        const item = el('div', 'lotitem');
+        item.innerHTML = histItemHTML(it);
+        host.appendChild(item);
+      }
+    }
+    const mw = $('#acctMoreWrap');
+    if (mw) mw.style.display = ACCT.hasMore ? 'block' : 'none';
+  } catch (e) {
+    host.innerHTML = '<div class="empty">❌ ' + esc(e.message || 'Load වුනේ නෑ') + '</div>';
+  }
+}
+
 async function renderHistory(reset) {
   const host = $('#historyList');
   const mode = $('#histMode');
@@ -3331,8 +3391,67 @@ async function renderAccount() {
     kv('Scan සීමාව', 'සීමාවක් නෑ ∞');
     host.appendChild(det);
 
+    /* ══════════════════════════════════════════════════════════════
+       🧾 **මගේ සම්පූර්ණ ඉතිහාසය** — Account tab එකේම
+       (user ඉල්ලීම: "my account කියලා email login දීලා ලොග් වෙන්න එකක් හදලා
+        user අදාළ හැම history එකක්ම ඒ tab එකේ පෙන්නන්න")
+       ══════════════════════════════════════════════════════════════ */
+    host.appendChild(el('h2', '', '🧾 මගේ සම්පූර්ණ ඉතිහාසය'));
+
+    const fRow = el('div', 'row');
+    const fRow2 = el('div', 'row');
+
+    const sel = document.createElement('select');
+    sel.id = 'acctLottery';
+    sel.innerHTML = '<option value="">— හැම ලොතරැයියක්ම —</option>';
+    for (const l of LOTTERIES) {
+      const o = document.createElement('option');
+      o.value = l.slug;
+      o.textContent = l.name + (l.nameSi ? ' · ' + l.nameSi : '');
+      sel.appendChild(o);
+    }
+    const from = document.createElement('input');
+    from.type = 'date'; from.id = 'acctFrom';
+    const to = document.createElement('input');
+    to.type = 'date'; to.id = 'acctTo';
+    const wins = document.createElement('input');
+    wins.type = 'checkbox'; wins.id = 'acctWinsOnly';
+    const winsLbl = document.createElement('label');
+    winsLbl.className = 'chk';
+    winsLbl.appendChild(wins);
+    winsLbl.appendChild(document.createTextNode(' දිනුම් විතරයි'));
+    const go = el('button', 'btn', '🔍 පෙන්නන්න');
+
+    fRow.appendChild(sel);
+    fRow2.appendChild(from);
+    fRow2.appendChild(to);
+    fRow2.appendChild(winsLbl);
+    fRow2.appendChild(go);
+    host.appendChild(fRow);
+    host.appendChild(fRow2);
+
+    const sumHost = el('div', '');
+    sumHost.id = 'acctHistSum';
+    host.appendChild(sumHost);
+
+    const listHost = el('div', '');
+    listHost.id = 'acctHistList';
+    host.appendChild(listHost);
+
+    const moreWrap = el('div', 'row');
+    moreWrap.id = 'acctMoreWrap';
+    moreWrap.style.display = 'none';
+    const more = el('button', 'btn sec', '⬇️ තව බලන්න');
+    more.addEventListener('click', () => loadAccountHistory(false));
+    moreWrap.appendChild(more);
+    host.appendChild(moreWrap);
+
+    go.addEventListener('click', () => loadAccountHistory(true));
+    [sel, from, to, wins].forEach(n => n.addEventListener('change', () => loadAccountHistory(true)));
+    loadAccountHistory(true);
+
     const row = el('div', 'row');
-    const b1 = el('button', 'btn', '📊 මගේ Report එක');
+    const b1 = el('button', 'btn sec', '📊 ලොතරැයි අනුව Report');
     b1.addEventListener('click', () => { goto('history'); });
     const b2 = el('button', 'btn', '🚪 Logout');
     b2.addEventListener('click', () => {
@@ -3679,7 +3798,8 @@ async function renderAdmin(section) {
   host.innerHTML = '';
   const nav = el('div', 'authtabs');
   [['overview', '📈 Overview'], ['users', '👥 Signups + Users'],
-   ['report', '📊 Lottery Report'], ['recent', '🕘 Recent Checks']].forEach(([k, label]) => {
+   ['activity', '🔎 ක්‍රියාකාරකම් සෙවීම'], ['report', '📊 Lottery Report'],
+   ['recent', '🕘 Recent Checks']].forEach(([k, label]) => {
     const b = el('button', k === cur ? 'active' : '', label);
     b.type = 'button';
     b.addEventListener('click', () => renderAdmin(k));
@@ -3693,6 +3813,7 @@ async function renderAdmin(section) {
 
   try {
     if (cur === 'users') await adminUsersPane(pane);
+    else if (cur === 'activity') await adminActivityPane(pane);
     else if (cur === 'report') await adminReportPane(pane);
     else if (cur === 'recent') await adminRecentPane(pane);
     else await adminOverviewPane(pane);
@@ -3998,6 +4119,177 @@ async function adminReportPane(pane) {
     w2.appendChild(t2);
     pane.appendChild(w2);
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   🔎 **ක්‍රියාකාරකම් සෙවීම** (admin) — user කරන හැම දෙයක්ම
+   · email / නම අනුව   · දින පරාසය අනුව (date wise)
+   · එක user කෙනෙක් අනුව (user wise)   · ලොතරැයිය / දිනුම් අනුව
+   · CSV එකක් විදිහට download කරන්නත් පුළුවන්
+   ═══════════════════════════════════════════════════════════════════ */
+const ADMIN_Q = { q: '', from: '', to: '', userId: '', slug: '', won: '', limit: 50, offset: 0 };
+
+async function adminActivityPane(pane) {
+  pane.innerHTML = '';
+
+  // ── filter පේළිය ──
+  const box = el('div', 'helpbox');
+  box.appendChild(el('div', '', '<strong>🔎 සොයන්න</strong> — email/නම, දින පරාසය, ලොතරැයිය හෝ දිනුම් අනුව.'));
+
+  const r1 = el('div', 'row');
+  const q = document.createElement('input');
+  q.type = 'search'; q.id = 'adQ'; q.placeholder = 'email හෝ නම (උදා: kamal@gmail.com)';
+  q.value = ADMIN_Q.q;
+  r1.appendChild(q);
+
+  const r2 = el('div', 'row');
+  const from = document.createElement('input');
+  from.type = 'date'; from.id = 'adFrom'; from.value = ADMIN_Q.from;
+  const to = document.createElement('input');
+  to.type = 'date'; to.id = 'adTo'; to.value = ADMIN_Q.to;
+  r2.appendChild(from); r2.appendChild(to);
+
+  const r3 = el('div', 'row');
+  const sel = document.createElement('select');
+  sel.id = 'adLot';
+  sel.innerHTML = '<option value="">— හැම ලොතරැයියක්ම —</option>';
+  for (const l of LOTTERIES) {
+    const o = document.createElement('option');
+    o.value = l.slug; o.textContent = l.name;
+    if (ADMIN_Q.slug === l.slug) o.selected = true;
+    sel.appendChild(o);
+  }
+  const wonSel = document.createElement('select');
+  wonSel.id = 'adWon';
+  wonSel.innerHTML = '<option value="">දිනුම් + පරාද දෙකම</option>' +
+    '<option value="true">දිනුම් විතරයි</option><option value="false">පරාද විතරයි</option>';
+  wonSel.value = ADMIN_Q.won;
+  r3.appendChild(sel); r3.appendChild(wonSel);
+
+  const r4 = el('div', 'row');
+  const go = el('button', 'btn', '🔍 සොයන්න');
+  const clr = el('button', 'btn sec', '♻️ Reset');
+  const csv = el('button', 'btn sec', '⬇️ CSV');
+  r4.appendChild(go); r4.appendChild(clr); r4.appendChild(csv);
+  if (ADMIN_Q.userId) {
+    const chip = el('button', 'btn sec', '👤 user #' + ADMIN_Q.userId + ' ×');
+    chip.addEventListener('click', () => { ADMIN_Q.userId = ''; renderAdmin('activity'); });
+    r4.appendChild(chip);
+  }
+
+  box.appendChild(r1); box.appendChild(r2); box.appendChild(r3); box.appendChild(r4);
+  pane.appendChild(box);
+
+  const sumHost = el('div', '');
+  pane.appendChild(sumHost);
+  const listHost = el('div', '');
+  pane.appendChild(listHost);
+  const moreWrap = el('div', 'row');
+  const more = el('button', 'btn sec', '⬇️ තව බලන්න');
+  moreWrap.appendChild(more);
+  pane.appendChild(moreWrap);
+
+  const readFilters = () => {
+    ADMIN_Q.q = ($('#adQ') || {}).value || '';
+    ADMIN_Q.from = ($('#adFrom') || {}).value || '';
+    ADMIN_Q.to = ($('#adTo') || {}).value || '';
+    ADMIN_Q.slug = ($('#adLot') || {}).value || '';
+    ADMIN_Q.won = ($('#adWon') || {}).value || '';
+  };
+  const load = async (reset) => {
+    readFilters();
+    if (reset) ADMIN_Q.offset = 0;
+    listHost.innerHTML = '<div class="empty">⏳ Load වෙමින්...</div>';
+    const p = new URLSearchParams();
+    if (ADMIN_Q.q) p.set('q', ADMIN_Q.q);
+    if (ADMIN_Q.from) p.set('from', ADMIN_Q.from);
+    if (ADMIN_Q.to) p.set('to', ADMIN_Q.to);
+    if (ADMIN_Q.slug) p.set('slug', ADMIN_Q.slug);
+    if (ADMIN_Q.won) p.set('won', ADMIN_Q.won);
+    if (ADMIN_Q.userId) p.set('userId', ADMIN_Q.userId);
+    p.set('limit', String(ADMIN_Q.limit));
+    p.set('offset', String(ADMIN_Q.offset));
+    try {
+      const d = await api('/api/admin/checks?' + p.toString());
+      const items = d.items || [];
+      let amount = 0;
+      items.forEach(x => { amount += Number(x.prizeAmountRs) || 0; });
+      let amtStr = '';
+      try { amtStr = amount.toLocaleString('en-LK'); } catch (e) { amtStr = String(amount); }
+      sumHost.innerHTML = '';
+      sumHost.appendChild(el('div', 'kv', '<span>මුළු ප්‍රතිඵල</span><span><strong>' + d.total + '</strong></span>'));
+      sumHost.appendChild(el('div', 'kv', '<span>මේ පිටුවේ දිනුම්</span><span><strong>' +
+        items.filter(x => x.won).length + '</strong></span>'));
+      sumHost.appendChild(el('div', 'kv', '<span>මේ පිටුවේ දිනුම් මුදල</span><span><strong>Rs. ' + esc(amtStr) + '</strong></span>'));
+
+      listHost.innerHTML = '';
+      if (!items.length) listHost.innerHTML = '<div class="empty">මුකුත් හම්බුනේ නෑ.</div>';
+      items.forEach(c => {
+        const it = el('div', 'lotitem');
+        const nums = (c.numbers || []).map(n => esc(n)).join(' ');
+        it.innerHTML =
+          '<div class="top"><div class="nm">' + esc(c.lotteryNameSi || c.lotteryName || c.slug) +
+            '<small>' + esc(fmtStamp(c.createdAt)) + ' · Draw ' + esc(c.drawNo || '—') +
+            ' · ' + (c.source === 'scan' ? '📷 Scan' : '⌨️ Manual') + '</small></div>' +
+            '<span class="badge ' + esc(c.provider || '') + '">' + esc(c.provider || '') + '</span></div>' +
+          '<div class="meta"><span>' + (c.won ? '🎉 දිනුමක්' : '😔 නෑ') +
+            (c.prizeLabel ? ' · ' + esc(c.prizeLabel) : '') + '</span><span>' + esc(c.prizeAmountFormatted || '') + '</span></div>' +
+          '<div class="meta"><span>👤 ' + (c.userEmail ? esc(c.userEmail) : '<em>guest</em>') +
+            '</span><span>' + nums + '</span></div>';
+        if (c.id) {
+          const btnU = el('button', 'btn sec', '👤 මේ user ගේ ක්‍රියාකාරකම්');
+          btnU.style.marginTop = '6px';
+          btnU.addEventListener('click', () => {
+            if (!c.userEmail) return;
+            ADMIN_Q.userId = ''; ADMIN_Q.q = c.userEmail;
+            renderAdmin('activity');
+          });
+          it.appendChild(btnU);
+        }
+        listHost.appendChild(it);
+      });
+      moreWrap.style.display = d.hasMore ? 'block' : 'none';
+    } catch (e) {
+      listHost.innerHTML = '<div class="empty">❌ ' + esc(e.message || 'Load වුනේ නෑ') + '</div>';
+    }
+  };
+
+  go.addEventListener('click', () => load(true));
+  clr.addEventListener('click', () => {
+    ADMIN_Q.q = ''; ADMIN_Q.from = ''; ADMIN_Q.to = ''; ADMIN_Q.slug = ''; ADMIN_Q.won = ''; ADMIN_Q.userId = '';
+    renderAdmin('activity');
+  });
+  more.addEventListener('click', () => { ADMIN_Q.offset += ADMIN_Q.limit; load(false); });
+  [q, from, to, sel, wonSel].forEach(n => n.addEventListener('change', () => load(true)));
+  csv.addEventListener('click', async () => {
+    readFilters();
+    const p = new URLSearchParams();
+    if (ADMIN_Q.q) p.set('q', ADMIN_Q.q);
+    if (ADMIN_Q.from) p.set('from', ADMIN_Q.from);
+    if (ADMIN_Q.to) p.set('to', ADMIN_Q.to);
+    if (ADMIN_Q.slug) p.set('slug', ADMIN_Q.slug);
+    if (ADMIN_Q.won) p.set('won', ADMIN_Q.won);
+    if (ADMIN_Q.userId) p.set('userId', ADMIN_Q.userId);
+    p.set('limit', '500'); p.set('offset', '0');
+    try {
+      const d = await api('/api/admin/checks?' + p.toString());
+      const head = ['createdAt', 'email', 'lottery', 'drawNo', 'drawDate', 'won', 'tier', 'prizeLabel', 'prizeAmountRs', 'numbers', 'source'];
+      const lines = [head.join(',')];
+      (d.items || []).forEach(c => {
+        lines.push([c.createdAt, c.userEmail || 'guest', c.lotteryName || c.slug, c.drawNo, c.drawDate,
+          c.won ? 'WIN' : '-', c.tier || '', (c.prizeLabel || '').replace(/,/g, ' '),
+          c.prizeAmountRs != null ? c.prizeAmountRs : '', (c.numbers || []).join(' '), c.source].join(','));
+      });
+      const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'lk-lottery-activity-' + new Date().toISOString().slice(0, 10) + '.csv';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+    } catch (e) { /* ignore */ }
+  });
+
+  load(true);
 }
 
 async function adminRecentPane(pane) {
@@ -5930,6 +6222,14 @@ function qrReadGrid(p, lot) {
 /** QR එකේ දත්ත අතින් පරීක්ෂාවේ කොටු වලට පුරවනවා */
 function prefillChecker(lot, p) {
   if (!lot) return;
+  /* 🎫 QR එකේ draw අංකය/දිනය තිබ්බොත් **ඒ draw එකටම** ප්‍රතිඵලය ගණනය වෙන්න
+     ඒකත් පුරවනවා (අලුත්ම draw එකට නෙවෙයි) — නිවැරදි ප්‍රතිඵලයට මේක වැදගත්. */
+  try {
+    const dn = $('#drawNo');
+    if (dn && p && p.drawNo) dn.value = String(p.drawNo);
+    const cd = $('#checkDate');
+    if (cd && p && p.date) cd.value = String(p.date);
+  } catch (e) { /* ignore */ }
   const sel = $('#lotterySelect');
   if (sel) { sel.value = lot.slug; CURRENT = lot; renderChecker(lot); }
   const z = $('#zodiacSelect');
@@ -5942,6 +6242,121 @@ function prefillChecker(lot, p) {
   (p.pairs || []).slice(0, boxes.length).forEach((v, i) => { boxes[i].value = String(v); });
 }
 
+
+/**
+ * 🎫 QR එකේ ටිකට් අනන්‍යතාව විතරයි තියෙන විට පෙන්නන කාඩ් එක.
+ *  · board + draw අංකය + serial පෙන්නනවා
+ *  · `/api/identify` එකෙන් ලොතරැයිය හඳුනාගන්නවා (අපේ ඇත්ත draws දත්ත වලින්)
+ *  · ඒ draw එකේ **නිල දිනුම් අංකත්** පෙන්නනවා → user ට තමන්ගේ අංක එක්ක බලන්න
+ *  · පස්සේ අංක ටයිප් කරලා check කරද්දී **ඒ draw එකටම** ගණනය වෙනවා
+ */
+async function renderTicketIdentity(p, box, host) {
+  box.appendChild(el('div', '', qrReadGrid(p, null)));
+
+  const note = el('div', 'msg info');
+  note.innerHTML =
+    '🎫 <strong>මේ QR එකේ ඔබ තෝරපු අංක නෑ</strong><br>' +
+    'NLB/DLB ටිකට් වල QR/බාර්කෝඩ් එකේ තියෙන්නේ ටිකට් එකේ <strong>අනන්‍යතාව</strong> විතරයි ' +
+    '(ලොතරැයිය · draw අංකය · serial). ඒ නිසා ප්‍රතිඵලය බලන්න ' +
+    '<strong>ටිකට් එකේ අංක ටයිප් කරන්න</strong> හෝ ' +
+    '<strong>🤖 AI Scan</strong> එකෙන් සම්පූර්ණ ටිකට් එකේ photo එකක් දෙන්න.';
+  box.appendChild(note);
+  box.appendChild(rawDebugBlock(p.raw));
+  host.appendChild(box);
+
+  const infoHost = el('div', 'card');
+  infoHost.appendChild(el('div', 'note', '🔎 ලොතරැයිය හඳුනාගනිමින්…'));
+  host.appendChild(infoHost);
+
+  let info = null;
+  try {
+    const q = '/api/identify?board=' + encodeURIComponent(p.board || '') +
+      '&draw=' + encodeURIComponent(p.drawNo || '') +
+      (p.lotteryCode ? '&code=' + encodeURIComponent(p.lotteryCode) : '');
+    info = await api(q);
+  } catch (e) { info = null; }
+
+  infoHost.innerHTML = '';
+
+  const actions = (lotObj) => {
+    const row = el('div', 'btnrow');
+    const b1 = el('button', 'btn', '✏️ අංක ටයිප් කරන්න');
+    b1.addEventListener('click', () => {
+      if (lotObj) prefillChecker(lotObj, p);
+      else if (p.drawNo && $('#drawNo')) $('#drawNo').value = String(p.drawNo);
+      goto('check');
+    });
+    const b2 = el('button', 'btn sec', '🤖 AI Scan එකෙන් කියවන්න');
+    b2.addEventListener('click', () => setScanMode('total'));
+    row.appendChild(b1); row.appendChild(b2);
+    return row;
+  };
+
+  if (info && info.found && info.exact && info.exact.length) {
+    const cands = info.exact;
+    const chosen = cands[0];
+    const lotObj = LOTTERIES.find(l => l.slug === chosen.slug) || null;
+    infoHost.appendChild(el('div', 'ok',
+      '🎯 <strong>ටිකට් එක හඳුනාගත්තා:</strong> ' + esc(chosen.nameSi || chosen.name) +
+      ' · <strong>Draw #' + esc(chosen.drawNo) + '</strong> · ' + esc(chosen.date)));
+
+    if (cands.length > 1) {
+      infoHost.appendChild(el('div', 'warn-mini',
+        '⚠️ මේ draw අංකය ලොතරැයි ' + cands.length + 'කට තියෙනවා — ඔබේ ටිකට් එකේ එක තෝරන්න.'));
+    }
+
+    const d = chosen;
+    const parts = [];
+    if (d.letter) parts.push('අකුර: <strong>' + esc(d.letter) + '</strong>');
+    if (d.zodiac) parts.push('ලග්නය: <strong>' + esc(zodiacSi(d.zodiac)) + '</strong>');
+    if (d.superNumber) parts.push('special: <strong>' + esc(d.superNumber) + '</strong>');
+    infoHost.appendChild(el('div', 'kv',
+      '<span>📋 Draw #' + esc(d.drawNo) + ' නිල ප්‍රතිඵලය</span><span>' + (parts.join(' · ') || '—') + '</span>'));
+    const nums = (d.numbers || []).map(n => '<span class="cmp-chip">' + esc(n) + '</span>').join('');
+    if (nums) {
+      const nw = el('div', 'cmp-nums');
+      nw.innerHTML = nums;
+      infoHost.appendChild(nw);
+    }
+    infoHost.appendChild(el('div', 'note',
+      '👆 මේ නිල අංක ඔබේ ටිකට් එකේ අංක එක්ක සසඳන්න — ඊට පස්සේ අංක ටයිප් කරලා ' +
+      'නිශ්චිත ප්‍රතිඵලය ගන්න.'));
+
+    if (cands.length > 1) {
+      const pick = el('div', 'btnrow');
+      cands.forEach(c => {
+        const b = el('button', 'btn sec', (c.nameSi || c.name) + ' #' + c.drawNo);
+        b.addEventListener('click', () => {
+          const lo = LOTTERIES.find(l => l.slug === c.slug) || null;
+          prefillChecker(lo, p);
+          goto('check');
+        });
+        pick.appendChild(b);
+      });
+      infoHost.appendChild(pick);
+    }
+    infoHost.appendChild(actions(lotObj));
+  } else {
+    infoHost.appendChild(el('div', 'warn',
+      '⚠️ මේ draw අංකය (<strong>' + esc(p.drawNo || '?') + '</strong>) අපේ දත්ත වල හම්බුනේ නෑ — ' +
+      'අපි ළඟ තියෙන්නේ පසුගිය මාස 6ේ ප්‍රතිඵල. ලොතරැයිය අතින් තෝරලා අංක දාන්න.'));
+    if (info && info.near && info.near.length) {
+      const row = el('div', 'btnrow');
+      info.near.slice(0, 4).forEach(n => {
+        const b = el('button', 'btn sec', (n.nameSi || n.name) + ' #' + n.closeDraw);
+        b.addEventListener('click', () => {
+          const lo = LOTTERIES.find(l => l.slug === n.slug) || null;
+          prefillChecker(lo, p);
+          goto('check');
+        });
+        row.appendChild(b);
+      });
+      infoHost.appendChild(el('div', 'warn-mini', 'අතින් තෝරන්න:'));
+      infoHost.appendChild(row);
+    }
+    infoHost.appendChild(actions(null));
+  }
+}
 
 let LAST_QR_PARSE = null;
 async function onQrDecoded(raw, via, ms) {
@@ -5973,6 +6388,14 @@ async function onQrDecoded(raw, via, ms) {
       }
       return;
     }
+  }
+
+  /* ---------- 🎫 QR එකේ ටිකට් අනන්‍යතාව විතරයි (අංක නෑ) ----------
+     NLB/DLB ටිකට් වල QR/බාර්කෝඩ් එකේ තියෙන්නේ board + draw + serial විතරයි.
+     ඒ නිසා අංක ටයිප් කරන්න/AI එකෙන් කියවන්න කියලා පැහැදිලිව කියනවා —
+     වැරදි ප්‍රතිඵලයක් කවදාවත් පෙන්නන්නේ නෑ. */
+  if (p.identityOnly) {
+    return renderTicketIdentity(p, box, host);
   }
 
   const need = lot ? (lot.numberCount || 6) : 6;

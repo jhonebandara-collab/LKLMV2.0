@@ -938,6 +938,17 @@ app.get('/api/admin/users/:id', requireAdmin, (req, res) => {
   res.json(detail);
 });
 
+// ---------------------------------------------------------------
+// GET /api/admin/checks — 🔎 හැම user කෙනෙක්ගේම ක්‍රියාකාරකම් (check ලොග් එක)
+//   ?q=email/නම  ?from=YYYY-MM-DD  ?to=YYYY-MM-DD  ?userId=  ?slug=  ?won=true
+//   ?limit=  ?offset=
+//   → user wise / email wise / date wise සෙවීමට (admin ට විතරයි)
+// ---------------------------------------------------------------
+app.get('/api/admin/checks', requireAdmin, (req, res) => {
+  const { q, from, to, userId, slug, won, limit, offset } = req.query || {};
+  res.json(stats.adminChecks({ q, from, to, userId, slug, won, limit, offset }));
+});
+
 app.get('/api/admin/report', requireAdmin, (req, res) => {
   const { from, to, userId } = req.query || {};
   res.json(stats.adminReport({

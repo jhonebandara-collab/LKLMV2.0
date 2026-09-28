@@ -639,6 +639,110 @@ async function main() {
     ok('🎧 හඬ පරීක්ෂාවෙන් පරාද වාක්‍යයත් කියනවා',
       soundTest.said.some(x => /lost this time/.test(x)), JSON.stringify(soundTest.said));
 
+    /* ---------- 4h. 🎫 ඇත්ත ටිකට් QR (අංක නැති) — වැරදි ප්රතිඵලයක් නොපෙන්වයි ---------- */
+    section('4h. 🎫 ඇත්ත NLB/DLB ටිකට් QR — අනන්‍යතාව විතරයි (වැරදි ප්රතිඵල නෑ)');
+    const ticketId = await evaluate(cdp, sessionId, `(async () => {
+      document.querySelector('#tabs button[data-tab="scan"]').click();
+      await new Promise(r => setTimeout(r, 80));
+
+      // 1) NLB barcode: 3-කේතය + 5-draw + 7-serial  (ඇත්ත ටිකට් රටාව)
+      await window.__lkm.onQrDecoded('085016050326004', 'jsqr', 90);
+      await new Promise(r => setTimeout(r, 1200));
+      const host = document.getElementById('scanMatch');
+      const txt1 = host.innerText || '';
+      const card1 = {
+        hasNote: /ඔබ තෝරපු අංක නෑ|අංක නෑ/.test(txt1),
+        hasBoard: /NLB/.test(txt1),
+        hasDraw: /1605/.test(txt1),
+        hasSerial: /0326004/.test(txt1),
+        // ලොතරැයිය හඳුනාගත්තාද + නිල අංක පෙන්නනවාද
+        identified: /හඳුනාගත්තා/.test(txt1),
+        showsNumbers: /5|16|17|42/.test(txt1),
+        // ⚠️ ප්රතිඵලයක් (win/lose) පෙන්නන්නේ නෑ — QR එකේ අංක නැති නිසා
+        noFakeResult: !host.querySelector('.result'),
+        buttons: Array.from(host.querySelectorAll('button')).map(b => b.textContent.trim()),
+        rawBlock: !!host.querySelector('.rawdbg'),
+      };
+
+      // 2) "අංක ටයිප් කරන්න" ඔබලා prefill වෙනවද බලනවා
+      const editBtn = Array.from(host.querySelectorAll('button'))
+        .find(b => /අංක ටයිප්/.test(b.textContent));
+      let prefill = null;
+      if (editBtn) {
+        editBtn.click();
+        await new Promise(r => setTimeout(r, 200));
+        prefill = {
+          drawNo: (document.getElementById('drawNo') || {}).value || '',
+          lottery: (document.getElementById('lotterySelect') || {}).value || '',
+          checkTabActive: !!document.querySelector('#tab-check.active'),
+        };
+      }
+
+      // 3) DLB hyphen එකක්
+      document.querySelector('#tabs button[data-tab="scan"]').click();
+      await new Promise(r => setTimeout(r, 80));
+      host.innerHTML = '';
+      await window.__lkm.onQrDecoded('4993-500395754-7-04', 'jsqr', 90);
+      await new Promise(r => setTimeout(r, 1200));
+      const txt2 = host.innerText || '';
+      const card2 = {
+        hasDLB: /DLB/.test(txt2),
+        hasDraw: /4993/.test(txt2),
+        identified: /හඳුනාගත්තා/.test(txt2),
+        noFakeResult: !host.querySelector('.result'),
+        txt: txt2.slice(0, 300),
+      };
+      document.querySelector('#tabs button[data-tab="scan"]').click();
+      return { card1: card1, prefill: prefill, card2: card2 };
+    })()`, true, true);
+
+    ok('QR එකේ අංක නෑ කියලා පැහැදිලිව කියනවා', ticketId.card1.hasNote);
+    ok('NLB board + draw 1605 + serial 0326004 කියවුනා',
+      ticketId.card1.hasBoard && ticketId.card1.hasDraw && ticketId.card1.hasSerial);
+    ok('🎯 ලොතරැයිය හඳුනාගත්තා + ඒ draw එකේ නිල අංක පෙන්නනවා',
+      ticketId.card1.identified && ticketId.card1.showsNumbers);
+    ok('⚠️ වැරදි ප්රතිඵලයක් පෙන්නන්නේ **නෑ** (win/lose කාඩ් එකක් නෑ)', ticketId.card1.noFakeResult);
+    ok('🔍 ඇත්ත QR දත්ත (copy කරන්න) block එක තියෙනවා', ticketId.card1.rawBlock);
+    ok('"✏️ අංක ටයිප් කරන්න" + "🤖 AI Scan" buttons 2ක්',
+      ticketId.card1.buttons.some(b => /අංක ටයිප්/.test(b)) &&
+      ticketId.card1.buttons.some(b => /AI Scan/.test(b)));
+    ok('✏️ ඔබද්දී **QR එකේ draw අංකය (1605)** check එකට පුරවනවා',
+      ticketId.prefill && ticketId.prefill.drawNo === '1605',
+      JSON.stringify(ticketId.prefill));
+    ok('✏️ ලොතරැයියත් තෝරලා දෙනවා (handahana) + check tab එකට යනවා',
+      ticketId.prefill && ticketId.prefill.lottery === 'handahana' && ticketId.prefill.checkTabActive,
+      JSON.stringify(ticketId.prefill));
+    ok('DLB ටිකට් එකත් හඳුනාගන්නවා (DLB · draw 4993 · ලොතරැයිය)',
+      ticketId.card2.hasDLB && ticketId.card2.hasDraw && ticketId.card2.identified,
+      JSON.stringify(ticketId.card2));
+    ok('DLB එකෙනුත් වැරදි ප්රතිඵලයක් නෑ', ticketId.card2.noFakeResult);
+
+    /* ---------- 4i. 👤 My Account + 🔎 Admin ක්‍රියාකාරකම් UI ---------- */
+    section('4i. 👤 My Account (ඉතිහාසය) + 🔎 Admin ක්‍රියාකාරකම් සෙවීම');
+    const acctUi = await evaluate(cdp, sessionId, `(async () => {
+      const out = {};
+      // Account tab එකට යනවා
+      document.querySelector('#tabs button[data-tab="account"]').click();
+      await new Promise(r => setTimeout(r, 900));
+      const acct = document.getElementById('accountCard');
+      out.loginForm = !!(acct.querySelector('input[type="email"]') || /login|ලොග්/i.test(acct.innerText));
+      // (login නොකර) ብ UI elements තියෙනවද කියලා static HTML එකෙන් බලනවා
+      const html = document.documentElement.innerHTML;
+      out.hasMyHistory = html.indexOf('මගේ සම්පූර්ණ ඉතිහාසය') >= 0;
+      out.hasAcctFilters = html.indexOf('acctLottery') >= 0 && html.indexOf('acctFrom') >= 0 && html.indexOf('acctWinsOnly') >= 0;
+      out.hasAcctLoader = html.indexOf('loadAccountHistory') >= 0;
+      // Admin section එක nav එකේ තියෙනවද
+      out.hasActivitySection = html.indexOf('ක්‍රියාකාරකම් සෙවීම') >= 0;
+      out.hasAdminChecksApi = html.indexOf('/api/admin/checks') >= 0;
+      out.hasCsv = html.indexOf('CSV') >= 0;
+      return out;
+    })()`, true, true);
+    ok('👤 Account tab එකේ login form එක තියෙනවා (email + password)', acctUi.loginForm);
+    ok('🧾 Account tab එකේම "මගේ සම්පූර්ණ ඉතිහාසය" කොටස', acctUi.hasMyHistory && acctUi.hasAcctLoader);
+    ok('🧾 ඉතිහාසයේ filters (ලොතරැයිය · දින · දිනුම් විතරයි)', acctUi.hasAcctFilters);
+    ok('🔎 Admin එකේ "ක්‍රියාකාරකම් සෙවීම" section එක', acctUi.hasActivitySection);
+    ok('🔎 Admin සෙවීම /api/admin/checks එකට සම්බන්ධයි + CSV download', acctUi.hasAdminChecksApi && acctUi.hasCsv);
+
     /* ---------- 5. 5-තත්පර overlay ---------- */
     section('5. ⏱️ 5-තත්පර ප්‍රතිඵල overlay');
     const overlay = await evaluate(cdp, sessionId, `(() => {

@@ -100,6 +100,76 @@
     { slug: 'suba-dawasak', keys: ['SUBA DAWASAK', 'SUBA', 'සුබ දවසක්'] },
   ];
 
+  /** අංක දාමයක මුල් බිංදු අයින් කරනවා ("01605" → "1605") */
+  function stripZeros(v) {
+    const t = String(v == null ? '' : v).trim();
+    if (!/^\d+$/.test(t)) return t;
+    const s2 = t.replace(/^0+(?=\d)/, '');
+    return s2 === '' ? '0' : s2;
+  }
+
+  /**
+   * 🎫 **ටිකට් අනන්‍යතාව කියවන කොටස** — NLB/DLB ඇත්ත ටිකට් වලින් තහවුරු කරපු රටා.
+   *
+   * ① URL QR        : https://www.nlb.lk/results/<slug>/<draw> · https://www.dlb.lk/...
+   * ② NLB ඉලක්කම් 15 : [ලොතරැයි කේතය 3][draw 5 (බිංදු පිරවූ)][serial 7]
+   *                    උදා: "085016050326004" → code=085 · draw=1605 · serial=0326004
+   * ③ DLB hyphen     : [draw 3-5]-[serial 6-12]-[check 1-2]-[terminal 1-4]
+   *                    උදා: "4993-500395754-7-04" → draw=4993 · serial=500395754
+   */
+  function parseTicketIdentity(raw) {
+    const t = String(raw || '').trim();
+    if (!t) return null;
+
+    /* ① URL */
+    try {
+      const url = new URL(t);
+      const host = url.hostname.replace(/^www\./, '').toLowerCase();
+      const isNlb = host.indexOf('nlb.lk') >= 0;
+      const isDlb = host.indexOf('dlb.lk') >= 0;
+      if (isNlb || isDlb) {
+        const parts = url.pathname.split('/').filter(Boolean);
+        let drawNo = null, slugGuess = null;
+        const drawIdx = parts.findIndex(p => /^\d{2,6}$/.test(p));
+        if (drawIdx > -1) {
+          drawNo = stripZeros(parts[drawIdx]);
+          if (drawIdx > 0) {
+            const prev = String(parts[drawIdx - 1]).toLowerCase();
+            if (!/^\d+$/.test(prev) && !/^(results?|draw|lottery)$/.test(prev)) slugGuess = prev;
+          }
+        }
+        let serial = null;
+        try {
+          url.searchParams.forEach((v, k) => {
+            if (/draw/i.test(k) && /^\d+$/.test(v)) drawNo = stripZeros(v);
+            if (/(serial|ser|ticket)/i.test(k) && /^\d{4,}$/.test(v)) serial = v;
+          });
+        } catch (e) { /* ignore */ }
+        return { board: isNlb ? 'NLB' : 'DLB', slugGuess: slugGuess, drawNo: drawNo, serial: serial, source: 'url' };
+      }
+    } catch (e) { /* URL එකක් නොවේ */ }
+
+    /* ③ DLB: "4993-500395754-7-04" */
+    const hy = t.match(/^(\d{3,5})-(\d{6,12})-(\d{1,2})-(\d{1,4})$/);
+    if (hy) {
+      return { board: 'DLB', drawNo: stripZeros(hy[1]), serial: hy[2],
+               checkDigit: hy[3], terminal: hy[4], source: 'dlb-hyphen' };
+    }
+
+    /* ② NLB: ඉලක්කම් 14+ */
+    if (/^\d{14,}$/.test(t)) {
+      return { board: 'NLB', lotteryCode: t.slice(0, 3),
+               drawNo: stripZeros(t.slice(3, 8)), serial: t.slice(8), source: 'nlb-numeric' };
+    }
+
+    /* ④ ඉලක්කම් 8-13 → DLB-style heuristic (විශ්වාසය අඩුයි) */
+    if (/^\d{8,13}$/.test(t)) {
+      return { board: 'DLB', drawNo: stripZeros(t.slice(0, 4)), serial: t.slice(4),
+               source: 'dlb-heuristic', weak: true };
+    }
+    return null;
+  }
+
   function slugFromText(s) {
     const up = String(s || '').toUpperCase();
     let best = null;
@@ -406,7 +476,9 @@
   function allLetterCands(s, lot) {
     const noise = noiseWords(lot && lot.slug);
     const t = String(s || '');
-    const re = /(^|[^A-Za-z0-9])([A-Za-z])(?![A-Za-z0-9])/g;
+    /* 🇱🇰 අකුර ඉංග්‍රීසි වෙන්නත් පුළුවන්, සිංහල වෙන්නත් පුළුවන් (උදා: "ග")
+       — ඒ නිසා තනි අකුරක් විදිහට තියෙන ඉංග්‍රීසි **හෝ** සිංහල/දෙමළ අකුරක් ගන්නවා. */
+    const re = /(^|[^A-Za-z0-9\u0D80-\u0DFF\u0B80-\u0BFF])([A-Za-z\u0D80-\u0DFF\u0B80-\u0BFF])(?![A-Za-z0-9\u0D80-\u0DFF\u0B80-\u0BFF])/g;
     const found = [];
     let m;
     while ((m = re.exec(t)) !== null) {
@@ -475,8 +547,13 @@
    */
   function parse(raw, lot) {
     const s = normalizeDigits(String(raw == null ? '' : raw)).trim();
+    /* 🎫 **ටිකට් අනන්‍යතාව (identity)** — NLB/DLB ටිකට් වල QR/බාර්කෝඩ් එකේ
+       තියෙන්නේ මේක විතරයි: board + ලොතරැයිය + draw අංකය + serial.
+       ⚠️ **ඔයා තෝරපු අංක QR එකේ ඇත්තේ නෑ** — ඒ නිසා "QR data එක results
+       එක්ක ගැලපෙන්නේ නෑ" කියන ප්‍රශ්නයේ ඇත්ත විසඳුම මේකයි. */
     const out = {
       raw: s, format: 'unknown', slug: null,
+      board: null, lotteryCode: null, identityOnly: false, identitySource: null,
       drawNo: null, date: null, letter: null, zodiac: null, superNumber: null, serial: null,
       // 🅰️ ටිකට් එකේ තියෙන **හැම තනි අකුරක්ම** + special letter එකක් තියෙනවා නම් ඒකත්
       letters: [], specialLetter: null,
@@ -495,6 +572,42 @@
       out.date = dt.date;
       out.dateSpan = { start: dt.start, end: dt.end };
       blank(dt.start, dt.end - dt.start);
+    }
+
+    /* ---------- (0) 🎫 ටිකට් අනන්‍යතාව (NLB/DLB ඇත්ත රටා) ----------
+       මේක ගැලපුනොත් **අංක හොයන්නේ නෑ** — QR එකේ ඇත්තටම අංක නෑ.
+       (කලින් මේ ඉලක්කම් "ටිකට් අංක" විදිහට කැබලි වෙලා වැරදි ප්‍රතිඵල පෙන්නුවා.) */
+    const ident = parseTicketIdentity(s);
+    /* ⚠️ සමහර (කලාතුරකින් හමුවන) URL QR වල අංකත් තියෙනවා — උදා:
+       …?draw=4563&n=12,45,67,89&letter=T  → එතකොට අංක ටිකත් කියවන්න ඕන. */
+    const urlCarriesNumbers = ident && ident.source === 'url' &&
+      /[?&#](n|no|num|nums|numbers|combo|digits)=/i.test(s) &&
+      /\d{1,2}(?:[,+\s-]+\d{1,2}){1,}/.test(s);
+    if (ident && urlCarriesNumbers) {
+      out.board = ident.board;
+      out.identitySource = ident.source;
+      if (ident.drawNo) out.drawNo = ident.drawNo;
+      if (ident.serial) out.serial = ident.serial;
+      if (ident.slugGuess) out.slug = ident.slugGuess;
+      out.notes.push('URL QR — ටිකට් අනන්‍යතාව + අංක දෙකම තියෙනවා');
+      /* ඉතුරු කොටස් වලින් (JSON/url params/kv) අංක කියවනවා */
+    } else if (ident) {
+      /* 🎫 ටිකට් අනන්‍යතාව හම්බුනා — **ඒත් මෙතනින් නවත්තන්නේ නෑ!**
+         සමහර ලොතරැයි QR වල අනන්‍යතාවයි අංකයියි **දෙකම** තියෙනවා (උදා: ශනිදා,
+         අද කෝටිපති, මහජන, මෙගා පවර්, ලග්න වාසනා). දෙකම කියවලා අන්තිමේදී
+         (කොටස් 8) හරි එක තෝරනවා. කලින් මෙතනින් return කළා නිසා ඒ අංක
+         නැතිව ගියා → "අංක වැරදියි / අංක 2ක් විතරයි" කියන ප්‍රශ්නය ආවා. */
+      out.board = ident.board;
+      out.identitySource = ident.source;
+      out.identityWeak = !!ident.weak;
+      out.lotteryCode = ident.lotteryCode || null;
+      out.serial = ident.serial || null;
+      if (ident.drawNo && !out.drawNo) out.drawNo = ident.drawNo;
+      if (ident.checkDigit) out.checkDigit = ident.checkDigit;
+      if (ident.terminal) out.terminal = ident.terminal;
+      if (ident.slugGuess) out.slug = ident.slugGuess;
+      out.identityFound = true;
+      /* ඉතුරු කොටස් වලින් (JSON/url/kv) අකුර · ලග්නය · special · අංක කියවනවා */
     }
 
     /* ---------- (2) JSON ---------- */
@@ -596,6 +709,21 @@
     if (!out.slug) out.slug = slugFromText(s);
     const lotCtx = lot || (out.slug ? { slug: out.slug } : null);
 
+    /* 🇱🇰 ලග්නය **අංකයක්** විදිහට තිබ්බොත් (සමහර ටිකට් වල "ලග්නය 3" / "LAGNA 05"
+       වගේ) → 1=මේෂ · 2=වෘෂභ … 12=මීන. (මේක අනුමානයක් නිසා user ට verify කරන්න දෙනවා) */
+    if (!out.zodiac && lotCtx && lotCtx.hasZodiac) {
+      const kwZn = findKeywordValue(flat(), KW.zodiac, true);
+      const nv = kwZn ? String(kwZn.value) : '';
+      if (/^\d{1,2}$/.test(nv)) {
+        const n = Number(nv);
+        if (n >= 1 && n <= 12) {
+          out.zodiac = ZODIAC[n - 1].en;
+          out.zodiacNumeric = n;
+          out.notes.push('ලග්නය අංකයක් විදිහට කියවුනා (' + n + ' → ' + ZODIAC[n - 1].si + ') — තහවුරු කරන්න');
+        }
+      }
+    }
+
     let toks = numTokens(rest).filter(t => {
       if (t.v.indexOf('#') >= 0) return false;
       if (insideSpan(t, out.dateSpan)) return false;
@@ -650,7 +778,16 @@
     if (!out.superNumber && lot && lot.hasSuperNumber && toks.length) {
       const w = lot.digitWidth || 2, c = lot.numberCount || 4;
       const same = toks.filter(t => t.len === w);
-      if (same.length >= c) {
+      /* 🎯 නීතිය ①: digitWidth ප්‍රමාණයේ tokens **ඕනවට වඩා එකක්** තියෙනවා නම්, ඒ අමතර
+         එක තමයි super number එක (උදා: "K 37 12 45 67 89" → 2-ඉලක්කම් 5ක්, ඕන 4ක්
+         → අමතර එක = 37 = super). මේක තමයි "super no waradiyata read" කියන එකේ විසඳුම. */
+      if (same.length === c + 1) {
+        out.superNumber = same[0].v;
+      }
+      if (!out.superNumber && same.length > c + 1) {
+        out.superNumber = same[0].v;   // කැබලි ගණන අපැහැදිලි නම් මුල් එක
+      }
+      if (!out.superNumber && same.length >= c) {
         const firstIdx = toks.indexOf(same[same.length - c]);
         for (let i = firstIdx - 1; i >= 0 && i >= firstIdx - 2; i--) {
           const cand = toks[i];
@@ -665,6 +802,35 @@
     out.pairs = picked.pairs;
     out.digitWidth = picked.width || (lotCtx && lotCtx.digitWidth) || null;
     out.numberCount = (lotCtx && lotCtx.numberCount) || null;
+
+    /* ---------- (8) 🎯 තීරණය: අංකද, අනන්‍යතාවද? ----------
+       අපි දැන් දෙකම කියවලා තියෙනවා. හරි එක තෝරන්නේ මෙහෙමයි:
+         · අංක හරියටම ගානට හම්බුනා නම් → **අංක** (අනන්‍යතාවයි අංකයියි දෙකම QR එකේ)
+         · අංක නැත්නම්, ශක්තිමත් අනන්‍යතාවක් (NLB 15-ඉලක්කම් · DLB hyphen · URL) නම්
+           → **අනන්‍යතාව** (අංක අතින්/AI එකෙන් ඕන)
+         · දුර්වල (heuristic) අනන්‍යතාවක් විතරක් නම් → අංක තියෙනවා නම් අංක
+    */
+    {
+      const wantC2 = (lotCtx && lotCtx.numberCount) || null;
+      const numsOk = wantC2 ? (out.pairs.length >= wantC2) : (out.pairs.length >= 2);
+      const gotField = !!(out.letter || out.zodiac || out.superNumber);
+      const rawSep = /[^\d\s]/.test(s);                     // අකුරු/විරාම ලකුණු තියෙනවා නම්
+      const strongId = !!(out.identityFound && !out.identityWeak);
+      let useNumbers;
+      if (numsOk && (gotField || rawSep || !strongId)) useNumbers = true;
+      else if (strongId) useNumbers = false;
+      else useNumbers = numsOk;
+
+      if (useNumbers) {
+        out.identityOnly = false;   // QR එකේ අංක තියෙනවා → ඒවා පාවිච්චි කරනවා
+        if (out.identityFound) out.notes.push('QR එකේ අනන්‍යතාව + අංක දෙකම තිබ්බා');
+      } else if (out.identityFound) {
+        out.identityOnly = true;    // QR එකේ අංක නෑ → අතින්/AI එකෙන් ඕන
+        out.pairs = [];
+        out.digitWidth = null;
+        out.notes.push('QR එකේ ටිකට් අනන්‍යතාව විතරයි — ඔබ තෝරපු අංක QR එකේ නෑ');
+      }
+    }
 
     /* ---------- (7) අකුර (letter) + confidence ---------- */
     if (!out.slug && lot) out.slug = lot.slug;

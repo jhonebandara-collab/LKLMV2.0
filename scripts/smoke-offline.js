@@ -39,6 +39,21 @@ async function getJson(url, opts) {
   return { status: res.status, json, text };
 }
 
+
+/** token එකක් එක්ක GET (getJson එකට Authorization header එක හදලා දෙනවා) */
+function getAuth(url, token) {
+  return getJson(url, { headers: token ? { Authorization: 'Bearer ' + token } : {} });
+}
+/** POST/PUT — JSON body එකක් යවලා පිළිතුර ගන්නවා (token එකත් දෙන්න පුළුවන්) */
+async function postJson(url, body, token) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = 'Bearer ' + token;
+  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body || {}) });
+  let json = null;
+  try { json = await res.json(); } catch (e) { json = null; }
+  return { status: res.status, json };
+}
+
 /** Server එක ready වෙනකම් ඉන්නවා (උපරිම තත්පර 30) */
 async function waitReady() {
   for (let i = 0; i < 60; i++) {
@@ -80,6 +95,7 @@ async function main() {
     cwd: ROOT,
     env: Object.assign({}, process.env, {
       PORT: String(PORT),
+      ADMIN_EMAILS: 'owner@lkm.test',
       JWT_SECRET: process.env.JWT_SECRET && process.env.JWT_SECRET.length >= 32
         ? process.env.JWT_SECRET
         : 'smoke-test-secret-0123456789abcdefghijklmnop',
@@ -133,6 +149,98 @@ async function main() {
       !!(size.json && size.json.kb < 2048), size.json && (size.json.kb + ' KB'));
 
     /* ---------- 3. PWA files ---------- */
+    section('2b. 🎫 /api/identify — ටිකට් අනන්‍යතාවෙන් ලොතරැයිය හඳුනාගැනීම');
+    {
+      const bundleRes = await getJson(BASE + '/api/offline-bundle');
+      const bundle = bundleRes.json || {};
+      ok('bundle එක ලැබුනා', Array.isArray(bundle.lotteries));
+      const lot = bundle.lotteries.find(l => (l.draws || []).length > 5);
+      const d = lot.draws[3];                       // පැරණි draw එකක් (අලුත්ම එක නොවේ)
+      const idRes = await getJson(BASE + '/api/identify?board=' + encodeURIComponent(lot.provider) +
+        '&draw=' + encodeURIComponent(d.drawNo));
+      const id = idRes.json || {};
+      ok('identify එක ඒ draw එක හම්බුනා (exact)', !!id && id.found === true,
+        JSON.stringify(id && { found: id.found, exact: (id.exact || []).map(x => x.slug + '#' + x.drawNo) }));
+      const hit = ((id && id.exact) || []).find(x => x.slug === lot.slug && String(x.drawNo) === String(d.drawNo));
+      ok('හරි ලොතරැයිය + හරි draw අංකය (' + lot.slug + ' #' + d.drawNo + ')', !!hit,
+        JSON.stringify(((id && id.exact) || []).map(x => x.slug + '#' + x.drawNo)));
+      ok('ඒ draw එකේ නිල අංකත් එවනවා (app එකේ පෙන්නන්න)',
+        !!(hit && Array.isArray(hit.numbers) && hit.numbers.length > 0),
+        hit ? JSON.stringify(hit.numbers) : 'no hit');
+      ok('ඉලක්කම් ගණන/පළල ලොතරැයියට ගැලපෙනවා',
+        !!hit && hit.numberCount === lot.numberCount && hit.digitWidth === lot.digitWidth,
+        hit ? ('count=' + hit.numberCount + ' width=' + hit.digitWidth) : 'no hit');
+      ok('අලුත්ම draw එකට වඩා **ඉල්ලපු draw එකම** තෝරනවා',
+        !!hit && String(hit.drawNo) === String(d.drawNo) && String(hit.drawNo) !== String(lot.draws[0].drawNo),
+        hit ? ('asked=' + d.drawNo + ' got=' + hit.drawNo) : 'no hit');
+      const badRes = await getJson(BASE + '/api/identify?board=NLB&draw=999999');
+      const bad = badRes.json || {};
+      ok('නොදන්නා draw එකකට හිස් උත්තරයක් (වැරදි ලොතරැයියක් නොකියනවා)',
+        bad && bad.found === false && (bad.exact || []).length === 0);
+    }
+
+    /* ---------- 2c. 👤 user history + 🔎 admin activity search ---------- */
+    section('2c. 👤 user history (account tab) + 🔎 admin user/email/date search');
+    {
+      const uniq = 'smoke' + Date.now() + '@lkm.test';
+      const reg = await postJson(BASE + '/api/auth/register', { email: uniq, password: 'Test1234!', name: 'Smoke User' });
+      ok('user register වුනා (email + password)', reg.status === 200 && !!reg.json && !!reg.json.token,
+        'status=' + reg.status + ' ' + JSON.stringify(reg.json && reg.json.error || ''));
+      const tok = reg.json && reg.json.token;
+
+      // ඇත්ත draw එකකින් manual check එකක් (දිනුමක් වෙන්න ඕන)
+      const bRes = await getJson(BASE + '/api/offline-bundle');
+      const b = bRes.json || {};
+      const lot = (b.lotteries || []).find(l => (l.draws || []).length > 3);
+      const dr = lot.draws[1];
+      const chk = await postJson(BASE + '/api/check', {
+        slug: lot.slug, drawNo: dr.drawNo,
+        letter: dr.letter || null, zodiac: dr.zodiac || null,
+        superNumber: dr.superNumber != null ? dr.superNumber : null,
+        numbers: dr.numbers,
+      }, tok);
+      ok('check එක save වුනා (login කරපු user ට)', chk.status === 200 && !!chk.json,
+        'status=' + chk.status);
+
+      const hist = await getAuth(BASE + '/api/history?limit=5', tok);
+      const hItems = (hist.json || {}).items || [];
+      ok('👤 /api/history එකේ මගේ check එක පේනවා', hItems.length >= 1 && hItems[0].slug === lot.slug,
+        JSON.stringify(hItems.map(x => x.slug)));
+      ok('👤 history එකේ දිනුම් මුදල/තත්ත්වයත් තියෙනවා',
+        hItems.length >= 1 && hItems[0].won === true && Number(hItems[0].prizeAmountRs) > 0,
+        JSON.stringify(hItems[0] && { won: hItems[0].won, amt: hItems[0].prizeAmountRs }));
+      const today = new Date().toISOString().slice(0, 10);
+      const histD = await getAuth(BASE + '/api/history?from=' + today + '&to=' + today, tok);
+      ok('👤 දින පරාසය අනුව filter එක වැඩ කරනවා (today)',
+        ((histD.json || {}).items || []).length >= 1);
+      const histOld = await getAuth(BASE + '/api/history?from=2020-01-01&to=2020-01-02', tok);
+      ok('👤 ඈත දින පරාසයකට හිස් ලිස්ට් එකක් (filter එක ඇත්තටම වැඩ)',
+        ((histOld.json || {}).items || []).length === 0);
+
+      // 🔎 admin — email wise
+      // (DB එකේ user දැනටමත් තිබ්බොත් register නොවෙයි → login කරනවා. දෙපාරක් run
+      //  කළත් test එක වැඩ කරන්න ඕන නිසා.)
+      let adm = await postJson(BASE + '/api/auth/register', { email: 'owner@lkm.test', password: 'Test1234!', name: 'Owner' });
+      if (!adm.json || !adm.json.token) {
+        adm = await postJson(BASE + '/api/auth/login', { email: 'owner@lkm.test', password: 'Test1234!' });
+      }
+      const admTok = adm.json && adm.json.token;
+      const byEmail = await getAuth(BASE + '/api/admin/checks?q=' + encodeURIComponent(uniq), admTok);
+      const beItems = (byEmail.json || {}).items || [];
+      ok('🔎 admin: email අනුව සෙව්වම ඒ user ගේ ක්‍රියාකාරකම පේනවා',
+        beItems.length >= 1 && beItems[0].userEmail === uniq,
+        'status=' + byEmail.status + ' items=' + beItems.length);
+      const byDate = await getAuth(BASE + '/api/admin/checks?from=' + today + '&to=' + today, admTok);
+      ok('🔎 admin: **date wise** සෙවීම වැඩ කරනවා',
+        ((byDate.json || {}).items || []).length >= 1);
+      const byWon = await getAuth(BASE + '/api/admin/checks?won=true&limit=5', admTok);
+      ok('🔎 admin: දිනුම් විතරයි filter එක වැඩ කරනවා',
+        ((byWon.json || {}).items || []).every(x => x.won === true));
+      const nonAdmin = await getAuth(BASE + '/api/admin/checks', tok);
+      ok('🔒 සාමාන්‍ය user ට admin ක්‍රියාකාරකම් පේන්නේ නෑ (403)',
+        nonAdmin.status === 403 || nonAdmin.status === 401, 'status=' + nonAdmin.status);
+    }
+
     section('3. 🗂️ PWA files serve වෙනවාද');
     for (const f of ['sw.js', 'offline.js', 'prize-engine.js', 'offline.html', 'manifest.webmanifest']) {
       const r = await fetch(BASE + '/' + f);

@@ -335,6 +335,46 @@
       return { scrapedAt, lotteries: bundleToLotteries(b), offline: true };
     }
 
+    /* 🎫 /api/identify — offline එකේදීත් ටිකට් අනන්‍යතාවෙන් ලොතරැයිය හඳුනාගන්නවා
+       (bundle එකේ පසුගිය මාස 6ේ draws තියෙන නිසා server එකේ එකම ලොජික් එකයි) */
+    if (p === '/api/identify') {
+      const want = String(url.searchParams.get('draw') || '').replace(/^0+(?=\d)/, '');
+      const board = String(url.searchParams.get('board') || '').toUpperCase();
+      if (!want || !/^\d+$/.test(want)) return null;
+      const exact = [];
+      const near = [];
+      for (const l of b.lotteries) {
+        if (board && l.provider && String(l.provider).toUpperCase() !== board) continue;
+        let bestD = null, bestDraw = null;
+        for (const d of (l.draws || [])) {
+          const dn = String(d.drawNo || '').replace(/^0+(?=\d)/, '');
+          if (!dn) continue;
+          const dist = Math.abs(Number(dn) - Number(want));
+          if (bestD === null || dist < bestD) { bestD = dist; bestDraw = d; }
+          if (dn === want) {
+            exact.push({
+              slug: l.slug, provider: l.provider, name: l.name, nameSi: l.nameSi || null,
+              drawNo: String(d.drawNo), date: d.date,
+              letter: d.letter || null, zodiac: d.zodiac || null,
+              superNumber: d.superNumber != null ? d.superNumber : null,
+              numbers: d.numbers || [],
+              hasLetter: !!l.hasLetter, hasZodiac: !!l.hasZodiac,
+              hasSuperNumber: !!l.hasSuperNumber,
+              numberCount: l.numberCount, digitWidth: l.digitWidth, offline: true,
+            });
+            break;
+          }
+        }
+        if (bestDraw && bestD !== null && bestD <= 25) {
+          near.push({ slug: l.slug, provider: l.provider, name: l.name, nameSi: l.nameSi || null,
+            closeDraw: String(bestDraw.drawNo), closeDate: bestDraw.date, distance: bestD });
+        }
+      }
+      near.sort((a, b2) => a.distance - b2.distance);
+      return { ok: true, board: board || null, drawNo: want, found: exact.length > 0,
+               exact: exact.slice(0, 6), near: near.slice(0, 5), offline: true };
+    }
+
     if (p === '/api/latest') {
       const results = [];
       for (const l of b.lotteries) {
@@ -921,8 +961,20 @@
     const rawStr = String(raw || '');
     const p = parsed || {};
 
+    /* 🎫 **ටිකට් අනන්‍යතා QR (NLB/DLB)** — draw අංකය QR එකෙන් එනවා, ඒත් ලොතරැයිය
+       තවම හඳුනාගෙන නෑ → app එකේ "දැනට තෝරලා තියෙන" ලොතරැයියේ අලුත්ම draw එකත්
+       එක්ක සසඳන එක **වැරදි** (උදා: handahana #1630 vs DLB #4993 → "තවම නිකුත් වී නෑ"
+       කියලා වැරදි පණිවිඩයක් එනවා). ලොතරැයිය හඳුනාගැනීම /api/identify එකෙන් වෙනවා. */
+    if (p.identityOnly) return null;
+
+    /* ⚠️ "අනාගත draw" පරීක්ෂාව කරන්නේ QR එකේ **එකම ලොතරැයිය හඳුනාගත්තොත්** විතරයි
+       (නැත්නම් වෙන ලොතරැයියක් එක්ක සසඳලා වැරදි පණිවිඩ එනවා). */
+    const ownLottery = !!(p.slug && lot && lot.slug === p.slug);
+    const boardMatches = !!(p.board && lot && lot.provider &&
+      String(lot.provider).toUpperCase() === String(p.board).toUpperCase());
+
     // ---- (අ) draw එක තවම නිකුත් වී නැති (future) ටිකට් ----
-    if (p.drawNo && lot) {
+    if (p.drawNo && lot && (ownLottery || boardMatches)) {
       const latest = Number(String(lot.latestDraw == null ? '' : lot.latestDraw).replace(/\D/g, ''));
       const mineNo = Number(String(p.drawNo).replace(/\D/g, ''));
       if (Number.isFinite(latest) && Number.isFinite(mineNo) && mineNo > latest && latest > 0) {

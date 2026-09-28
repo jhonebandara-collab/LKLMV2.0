@@ -357,6 +357,116 @@ console.log('\n12. 🔁 ඉලක්කම් 1/2 ආකාරය වෙනස�
     JSON.stringify(r3.pairs) + ' conf=' + r3.confidence);
 }
 
+/* ----------------------------------------------------------------- 13 */
+console.log('\n13. 🎫 ඇත්ත ටිකට් අනන්‍යතාව (NLB/DLB QR + barcode) — අංක QR එකේ නෑ');
+{
+  // NLB barcode: 3-ඉලක්කම් කේතය + 5-ඉලක්කම් draw (බිංදු පිරවූ) + 7-ඉලක්කම් serial
+  const r1 = P.parse('085016050326004', null);
+  ok('NLB ඉලක්කම් 15 → board/draw/serial හරියටම',
+    r1.board === 'NLB' && r1.drawNo === '1605' && r1.serial === '0326004' && r1.lotteryCode === '085',
+    JSON.stringify({ b: r1.board, d: r1.drawNo, s: r1.serial, c: r1.lotteryCode }));
+  ok('🚫 IMPORTANT: ඒ ඉලක්කම් වලින් ටිකට් අංක හදන්නේ නෑ (කලින් හදනවා)',
+    Array.isArray(r1.pairs) && r1.pairs.length === 0 && r1.identityOnly === true,
+    JSON.stringify(r1.pairs) + ' ident=' + r1.identityOnly);
+
+  // DLB hyphen: DRAW-SERIAL-CHECK-TERMINAL
+  const r2 = P.parse('4993-500395754-7-04', null);
+  ok('DLB "4993-500395754-7-04" → DLB/draw 4993/serial',
+    r2.board === 'DLB' && r2.drawNo === '4993' && r2.serial === '500395754' && r2.identityOnly,
+    JSON.stringify({ b: r2.board, d: r2.drawNo, s: r2.serial }));
+  const r3 = P.parse('3112-140717518-5-04', null);
+  ok('DLB "3112-140717518-5-04" → draw 3112', r3.drawNo === '3112' && r3.board === 'DLB', r3.drawNo);
+
+  // URL QR
+  const r4 = P.parse('https://www.nlb.lk/results/handahana/1605', null);
+  ok('NLB URL → board NLB · draw 1605 · ලොතරැයිය handahana',
+    r4.board === 'NLB' && r4.drawNo === '1605' && r4.slug === 'handahana' && r4.identityOnly,
+    JSON.stringify({ b: r4.board, d: r4.drawNo, s: r4.slug }));
+  const r5 = P.parse('https://www.dlb.lk/result/en?draw=3121', null);
+  ok('DLB URL (?draw=) → draw 3121', r5.board === 'DLB' && r5.drawNo === '3121', r5.drawNo);
+
+  // අංක QR එකේ ඇත්තටම තියෙන URL එකක් (කලාතුරකින්)
+  const r6 = P.parse('https://dlb.lk/verify?draw=4563&n=12,45,67,89&letter=T', lotObj('govisetha'));
+  ok('අංක තියෙන URL QR එකක් නම් අංකත් කියවනවා (identityOnly නොවේ)',
+    r6.pairs.length === 4 && r6.letter === 'T' && r6.drawNo === '4563' && !r6.identityOnly,
+    JSON.stringify({ p: r6.pairs, l: r6.letter, d: r6.drawNo, i: r6.identityOnly }));
+
+  // Lottery-ness: ඇත්ත ටිකට් කේත ලොතරැයි QR විදිහට අඳුනගන්න ඕන
+  ok('ලොතරැයි QR එකක් විදිහට අඳුනගන්නවා (NLB 15 · DLB hyphen · URL)',
+    P.looksLikeLottery('085016050326004', r1) &&
+    P.looksLikeLottery('4993-500395754-7-04', r2) &&
+    P.looksLikeLottery('https://www.nlb.lk/results/handahana/1605', r4));
+
+  // WIFI / YouTube තවම ලොතරැයි නොවේ
+  ok('WIFI/YouTube QR තවමත් "ලොතරැයි QR නොවේ"',
+    !P.looksLikeLottery('WIFI:S:Home;T:WPA;P:12345678;;', P.parse('WIFI:S:Home;T:WPA;P:12345678;;', null)) &&
+    !P.looksLikeLottery('https://youtube.com/watch?v=abc123', P.parse('https://youtube.com/watch?v=abc123', null)));
+}
+
+/* ----------------------------------------------------------------- 14 */
+console.log('\n14. 📣 ඔයා report කරපු ලොතරැයි 6 (දැන් හරි)');
+{
+  const L = {
+    'lagna-wasana': { slug: 'lagna-wasana', provider: 'DLB', numberCount: 4, digitWidth: 2, hasZodiac: true },
+    'handahana': { slug: 'handahana', provider: 'NLB', numberCount: 4, digitWidth: 2, hasZodiac: true },
+    'mega-power': { slug: 'mega-power', provider: 'NLB', numberCount: 4, digitWidth: 2, hasLetter: true, hasSuperNumber: true },
+    'shanida': { slug: 'shanida', provider: 'DLB', numberCount: 4, digitWidth: 2, hasLetter: true },
+    'mahajana-sampatha': { slug: 'mahajana-sampatha', provider: 'NLB', numberCount: 6, digitWidth: 1, hasLetter: true },
+    'ada-kotipathi': { slug: 'ada-kotipathi', provider: 'DLB', numberCount: 4, digitWidth: 2, hasLetter: true },
+  };
+
+  // ① ලග්න වාසනා — "අංක 4න් 2යි කියවුනේ" → දැන් 4ම
+  const a = P.parse('DLB LAGNA WASANA 4993 LAGNA:5 12 45 67 89', L['lagna-wasana']);
+  ok('ලග්න වාසනා: අංක **4ම** කියවුනා (කලින් 2යි)', a.pairs.length === 4, JSON.stringify(a.pairs));
+  ok('ලග්න වාසනා: ලග්නය අංකයකින් (5 → LEO/සිංහ) කියවුනා', a.zodiac === 'LEO' && a.zodiacNumeric === 5,
+    'zodiac=' + a.zodiac + ' n=' + a.zodiacNumeric);
+
+  // ② හඳහන — "ලග්නය identify කරන්නේ නෑ"
+  const b = P.parse('HADAHANA 1605 LAGNA GEMINI 12 45 67 89', L['handahana']);
+  ok('හඳහන: ලග්නය (GEMINI) හඳුනාගත්තා', b.zodiac === 'GEMINI', 'zodiac=' + b.zodiac);
+  ok('හඳහන: අංක 4ම', b.pairs.length === 4, JSON.stringify(b.pairs));
+
+  // ③ මෙගා පවර් — "super no වැරදියට කියවනවා"
+  const c = P.parse('MEGA POWER 2340 LETTER K SPECIAL 37 12 45 67 89', L['mega-power']);
+  ok('මෙගා පවර්: super number = 37 (අංක 12,45,67,89 නෙවෙයි)',
+    c.superNumber === '37', 'sn=' + c.superNumber + ' pairs=' + JSON.stringify(c.pairs));
+  ok('මෙගා පවර්: අකුර K + අංක 4ම', c.letter === 'K' && c.pairs.length === 4,
+    'letter=' + c.letter + ' pairs=' + JSON.stringify(c.pairs));
+
+  // ④ ශනිදා — "කියවන අංක වැරදියි"
+  const d = P.parse('SHANIDA 5456 G 12 45 67 89', L['shanida']);
+  ok('ශනිදා: අකුර G + අංක 12,45,67,89 හරියටම',
+    d.letter === 'G' && JSON.stringify(d.pairs) === JSON.stringify(['12', '45', '67', '89']),
+    'letter=' + d.letter + ' pairs=' + JSON.stringify(d.pairs));
+
+  // ⑤ අද කෝටිපති — "ප්‍රතිඵලය වැරදි"
+  const e = P.parse('ADA KOTIPATHI 3121 2026-09-25 LETTER T 12 45 67 89', L['ada-kotipathi']);
+  ok('අද කෝටිපති: අකුර T + අංක 4ම + දිනය අංක වලට ආවේ නෑ',
+    e.letter === 'T' && JSON.stringify(e.pairs) === JSON.stringify(['12', '45', '67', '89']) && e.date === '2026-09-25',
+    JSON.stringify({ letter: e.letter, pairs: e.pairs, date: e.date }));
+
+  // ⑥ මහජන සම්පත — "සමහර ඒවාට ඉංග්‍රීසි අකුර read වෙන්නේ නෑ"
+  const f1 = P.parse('MAHAJANA SAMPATHA 6321 S 9 8 6 1 5 9', L['mahajana-sampatha']);
+  ok('මහජන: අකුර S (label නැතිව, තනි අකුර විදිහට) කියවුනා', f1.letter === 'S',
+    'letter=' + f1.letter);
+  const f2 = P.parse('MAHAJANA SAMPATHA 6321 2026-09-25 S 986159 SER 7712345', L['mahajana-sampatha']);
+  ok('මහජන: අකුර + අංක 6ම (එකට ලියපු "986159" කැබලි කරලා)',
+    f2.letter === 'S' && JSON.stringify(f2.pairs) === JSON.stringify(['9', '8', '6', '1', '5', '9']),
+    JSON.stringify({ letter: f2.letter, pairs: f2.pairs }));
+  const f3 = P.parse('MAHAJANA SAMPATHA 6321 986159 7712345', L['mahajana-sampatha']);
+  ok('මහජන: අකුර නැති payload එකේත් අංක 6ම ගත්තා (වැරදි අංක නෑ)',
+    JSON.stringify(f3.pairs) === JSON.stringify(['9', '8', '6', '1', '5', '9']),
+    JSON.stringify(f3.pairs));
+
+  // 🎫 අනන්‍යතාව විතරක් තියෙන QR වලින් **අංක හදන්නේම නෑ** (වැරදි ප්‍රතිඵල නෑ)
+  const g1 = P.parse('085016050326004', L['handahana']);
+  ok('NLB 15-ඉලක්කම් QR → අංක හදන්නේ නෑ (identityOnly)',
+    g1.identityOnly === true && g1.pairs.length === 0, JSON.stringify(g1.pairs));
+  const g2 = P.parse('4993-500395754-7-04', L['lagna-wasana']);
+  ok('DLB hyphen QR → අංක හදන්නේ නෑ (identityOnly)',
+    g2.identityOnly === true && g2.pairs.length === 0, JSON.stringify(g2.pairs));
+}
+
 console.log('\n══════════════════════════════════════════════════════');
 console.log('  ✓ Pass: ' + pass + '   ✗ Fail: ' + fail);
 if (failures.length) {

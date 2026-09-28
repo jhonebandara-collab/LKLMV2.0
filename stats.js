@@ -396,6 +396,60 @@ function adminOverview() {
 // ---------------------------------------------------------------
 // ADMIN — හැම signup එකක්ම + ඒගොල්ලන්ගේ stats
 // ---------------------------------------------------------------
+/**
+ * 🔎 **adminChecks** — හැම user කෙනෙක්ගේම හැම check එකක්ම (ක්‍රියාකාරකම් ලොග් එක).
+ * Admin ට සොයන්න පුළුවන්:
+ *   · email / නම අනුව        → q
+ *   · දින පරාසය අනුව         → from / to
+ *   · එක user කෙනෙක් අනුව     → userId
+ *   · ලොතරැයිය / දිනුම් අනුව  → slug / won
+ *
+ * (user ඉල්ලීම: "user කරන හැම දෙයක්ම admin ට පේන්න ඕන — user wise / email wise /
+ *  date wise search කරන්න පුළුවන් විදිහට")
+ */
+function adminChecks({ q, from, to, userId, slug, won, limit, offset } = {}) {
+  const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 500);
+  const off = Math.max(parseInt(offset, 10) || 0, 0);
+  const pat = likePattern(q);
+
+  const where = [];
+  const args = [];
+  if (pat) {
+    where.push("(LOWER(COALESCE(u.email,'')) LIKE ? ESCAPE '\\' OR LOWER(COALESCE(u.name,'')) LIKE ? ESCAPE '\\')");
+    args.push(pat, pat);
+  }
+  const uid = parseInt(userId, 10);
+  if (Number.isInteger(uid) && uid > 0) { where.push('c.userId = ?'); args.push(uid); }
+  if (slug) { where.push('c.slug = ?'); args.push(String(slug)); }
+  if (won === true || won === 'true' || won === '1') where.push('c.won = 1');
+  if (won === false || won === 'false' || won === '0') where.push('c.won = 0');
+  const df = dateFilter(from, to, 'c');   // alias = 'c' (prefix), not 'c.createdAt'
+  const whereSql = (where.length ? ' WHERE ' + where.join(' AND ') : '') + df.sql;
+  const allArgs = args.concat(df.args);
+
+  const total = Number(prepare(
+    'SELECT COUNT(*) AS n FROM checks c LEFT JOIN users u ON u.id = c.userId' + whereSql
+  ).get(...allArgs).n || 0);
+
+  const rows = prepare(`
+    SELECT c.*, u.email AS userEmail, u.name AS userName
+    FROM checks c LEFT JOIN users u ON u.id = c.userId
+    ${whereSql}
+    ORDER BY c.createdAt DESC, c.id DESC LIMIT ? OFFSET ?
+  `).all(...allArgs, lim, off);
+
+  return {
+    total, limit: lim, offset: off,
+    hasMore: off + rows.length < total,
+    items: rows.map(r => Object.assign(mapCheckRow(r), {
+      userEmail: r.userEmail || null,
+      userName: r.userName || null,
+      createdAt: r.createdAt || null,
+      source: r.source || 'manual',
+    })),
+  };
+}
+
 function adminUsers({ q, limit, offset, sort } = {}) {
   const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 500);
   const off = Math.max(parseInt(offset, 10) || 0, 0);
@@ -587,4 +641,4 @@ module.exports = {
   userStats, userHistory, userReport,
   adminOverview, adminUsers, adminUserDetail, adminReport,
   fmtRs,
-};
+  adminChecks,};

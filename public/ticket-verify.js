@@ -35,6 +35,9 @@
     yourTicket: { si: 'ඔබේ ටිකට් එක', en: 'Your ticket', ta: 'உங்கள் டிக்கெட்' },
     drawResult: { si: 'දිනුම් ප්‍රතිඵලය', en: 'Draw result', ta: 'டிரா முடிவு' },
     lottery: { si: 'ලොතරැයිය', en: 'Lottery', ta: 'லாட்டரி' },
+    board: { si: 'පුවරුව (NLB/DLB)', en: 'Board', ta: 'வாரியம்' },
+    ticketCode: { si: 'ටිකට් කේතය', en: 'Ticket code', ta: 'டிக்கெட் குறியீடு' },
+    serial: { si: 'Serial අංකය', en: 'Serial no.', ta: 'வரிசை எண்' },
     drawNo: { si: 'Draw අංකය', en: 'Draw no.', ta: 'டிரா எண்' },
     date: { si: 'දිනය', en: 'Date', ta: 'தேதி' },
     letter: { si: 'අකුර', en: 'Letter', ta: 'எழுத்து' },
@@ -150,6 +153,19 @@
       row.drawText = lotLabelName(lot.slug, l);
     }
 
+    /* ---- 🎫 ටිකට් අනන්‍යතාව (QR එකේ තිබ්බා නම්) — ℹ️ තොරතුරු පේළි විතරයි
+       (දිනුම් ප්‍රතිඵලයේ මේවා නෑ, ඒ නිසා ✅/❌ කියන්නේ නෑ) ---- */
+    const addInfo = (key, label, val) => {
+      if (val == null || String(val) === '') return;
+      rows.push({
+        key: key, label: label, ticketText: String(val), drawText: null,
+        status: 'info', showTicket: true, showDraw: false,
+      });
+    };
+    addInfo('board', t('board', l), parsed.board);
+    addInfo('ticketCode', t('ticketCode', l), parsed.lotteryCode);
+    addInfo('serial', t('serial', l), parsed.serial);
+
     /* ---- draw අංකය + දිනය (QR එකේ තිබ්බා නම්) ---- */
     if (norm(parsed.drawNo)) {
       add('drawNo', t('drawNo', l), String(parsed.drawNo).replace(/\D/g, '').replace(/^0+(?=\d)/, ''),
@@ -251,7 +267,12 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  function icon(status) { return status === 'ok' ? '✅' : (status === 'bad' ? '❌' : '⚠️'); }
+  function icon(status) {
+    if (status === 'ok') return '✅';
+    if (status === 'bad') return '❌';
+    if (status === 'info') return 'ℹ️';
+    return '⚠️';
+  }
 
   /**
    * සැසඳීමේ ටේබලය HTML විදිහට.
@@ -264,10 +285,11 @@
       const tShow = r.ticketText != null ? esc(r.ticketText)
         : '<span class="cmp-none">' + esc(L.noneTxt) + '</span>';
       const dShow = r.drawText != null ? esc(r.drawText) : '—';
+      const arrow = (r.status === 'ok') ? '=' : (r.status === 'bad' ? '≠' : '·');
       return '<div class="cmp-row ' + r.status + '">' +
         '<span class="cmp-k">' + esc(r.label) + '</span>' +
         '<span class="cmp-t">' + tShow + '</span>' +
-        '<span class="cmp-arrow">' + (r.status === 'ok' ? '=' : (r.status === 'bad' ? '≠' : '·')) + '</span>' +
+        '<span class="cmp-arrow">' + arrow + '</span>' +
         '<span class="cmp-d">' + dShow + '</span>' +
         '<span class="cmp-s">' + icon(r.status) + '</span>' +
         '</div>';
