@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>Lanka Lottery Checker — NLB &amp; DLB</title>
+<meta name="description" content="Scan your NLB or DLB lottery ticket QR code and instantly check if you won." />
+<meta name="theme-color" content="#0f1220" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<canvas id="confetti-canvas"></canvas>
+<div id="toast"></div>
+
+<div id="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">🎟️</div>
+      <div>
+        <h1>Lanka Lottery Checker</h1>
+        <p class="sub">NLB &amp; DLB — scan, compare, win</p>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ============ SCAN VIEW ============ -->
+    <section class="view active" id="view-scan">
+
+      <div class="card" id="scanner-card">
+        <h2>📷 Scan Ticket QR Code</h2>
+        <div id="qr-reader"></div>
+        <p class="scan-hint">Hold your phone steady, ~10–15cm from the ticket.<br>Good lighting helps a lot with small QR codes.</p>
+        <div class="btn-row">
+          <button class="btn-primary" id="btn-start-scan">Start Camera</button>
+          <button class="btn-secondary" id="btn-stop-scan">Stop</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn-secondary flex1" id="btn-manual-entry">✍️ Enter Manually Instead</button>
+        </div>
+      </div>
+
+      <div class="card hidden" id="detected-card">
+        <h2>✅ Ticket Detected</h2>
+        <div class="detected-chip">
+          <span class="dot"></span>
+          <div>
+            <div id="detected-summary">—</div>
+            <code id="detected-raw"></code>
+          </div>
+        </div>
+
+        <label>Lottery Board</label>
+        <div class="board-tabs">
+          <div class="board-tab" id="tab-nlb" data-board="NLB">NLB</div>
+          <div class="board-tab" id="tab-dlb" data-board="DLB">DLB</div>
+        </div>
+
+        <label for="select-lottery">Lottery Game</label>
+        <select id="select-lottery"></select>
+
+        <label for="input-draw">Draw Number</label>
+        <input type="number" id="input-draw" inputmode="numeric" placeholder="e.g. 1605" />
+
+        <div id="ticket-numbers-form"></div>
+
+        <button class="btn-primary btn-block" id="btn-check-result">🔍 Check Result</button>
+      </div>
+
+      <div class="card hidden" id="loading-card">
+        <div class="loading-row">
+          <span class="spinner"></span>
+          <span id="loading-text">Fetching official results…</span>
+        </div>
+      </div>
+
+      <div class="card hidden" id="result-card">
+        <div class="result-panel" id="result-panel">
+          <div class="result-icon" id="result-icon">🎉</div>
+          <h3 id="result-title">You Won!</h3>
+          <div class="prize-amount" id="result-amount">Rs. 0</div>
+          <div class="tier-label" id="result-tier">—</div>
+
+          <div class="vs-label">Your Numbers</div>
+          <div class="compare-row" id="row-ticket-numbers"></div>
+          <div class="vs-label">Official Draw Result</div>
+          <div class="compare-row" id="row-draw-numbers"></div>
+          <p class="draw-date hidden" id="result-draw-date"></p>
+          <p class="disclaimer zodiac-warning hidden" id="result-zodiac-warning"></p>
+
+          <a class="official-link" id="official-link" href="#" target="_blank" rel="noopener">View official result page ↗</a>
+
+          <p class="disclaimer" id="result-disclaimer">
+            This app compares the numbers you entered against the officially published draw result.
+            Always verify at the point of redemption — only NLB/DLB can validate a physical ticket for payout.
+          </p>
+        </div>
+        <button class="btn-secondary btn-block" id="btn-scan-again">Scan Another Ticket</button>
+      </div>
+
+    </section>
+
+    <!-- ============ LOTTERIES VIEW ============ -->
+    <section class="view" id="view-lotteries">
+      <div class="card">
+        <h2>🇱🇰 All Current Lotteries</h2>
+        <div class="board-tabs">
+          <div class="board-tab active nlb" id="lot-tab-nlb" data-board="NLB">NLB (21)</div>
+          <div class="board-tab" id="lot-tab-dlb" data-board="DLB">DLB (9)</div>
+        </div>
+        <div class="lottery-grid" id="lottery-list"></div>
+      </div>
+    </section>
+
+    <!-- ============ HISTORY VIEW ============ -->
+    <section class="view" id="view-history">
+      <div class="card">
+        <h2>🕓 Check History</h2>
+        <div id="history-list"><p class="empty-state">No tickets checked yet. Scan one to get started!</p></div>
+        <button class="btn-secondary btn-block hidden" id="btn-clear-history">Clear History</button>
+      </div>
+    </section>
+
+    <!-- ============ ABOUT VIEW ============ -->
+    <section class="view" id="view-about">
+      <div class="card">
+        <h2>ℹ️ About This App</h2>
+        <p style="font-size:13.5px;line-height:1.6;color:var(--text-dim)">
+          Lanka Lottery Checker scans the QR/barcode on National Lotteries Board (NLB) and
+          Development Lotteries Board (DLB) tickets, identifies the lottery &amp; draw number,
+          fetches the live official result, and compares it to your ticket.
+        </p>
+        <p style="font-size:13.5px;line-height:1.6;color:var(--text-dim)">
+          <b>Why enter numbers manually?</b> The QR code only proves a ticket's draw and serial —
+          it does not contain your chosen numbers (only NLB/DLB's private servers hold that).
+          So after scanning, just tap in the numbers printed on your ticket to compare.
+        </p>
+        <p style="font-size:13.5px;line-height:1.6;color:var(--text-dim)">
+          Results are fetched live from <b>nlb.lk</b> and <b>dlb.lk</b>. This is an independent
+          checking tool and is not affiliated with NLB or DLB. Always confirm with the official
+          board before redeeming a prize.
+        </p>
+      </div>
+    </section>
+
+  </main>
+
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-view="view-scan"><span class="icon">📷</span>Scan</button>
+    <button class="nav-btn" data-view="view-lotteries"><span class="icon">🎰</span>Lotteries</button>
+    <button class="nav-btn" data-view="view-history"><span class="icon">🕓</span>History</button>
+    <button class="nav-btn" data-view="view-about"><span class="icon">ℹ️</span>About</button>
+  </nav>
+
+</div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="lotteries.js"></script>
+<script src="prizeEngine.js"></script>
+<script src="ticketParser.js"></script>
+<script src="resultsFetcher.js"></script>
+<script src="sounds.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
